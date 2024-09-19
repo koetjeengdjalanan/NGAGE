@@ -22,6 +22,7 @@ class MainView(ctk.CTkFrame):
         self.__general_input_forms()
         self.__fFive_input_forms()
         self.__action_button()
+        print(Path(self.controller.tmpDir).joinpath("tmpExport.xlsx"))
 
     def __general_input_forms(self) -> None:
         ### General Inputs Forms
@@ -131,7 +132,7 @@ class MainView(ctk.CTkFrame):
                 entry=f5FilePathInput[x], name="F5", type=x, isResource=True
             ),
         )
-        ctk.CTkLabel(master=f5FormsFrame, text="sdc CPU 95th %").grid(
+        ctk.CTkLabel(master=f5FormsFrame, text="SDC CPU 95th %").grid(
             column=1, row=3, sticky="nsew", padx=5, pady=(5, 0)
         )
         f5FilePathInput["sdc-cpu"] = ctk.CTkEntry(
@@ -169,10 +170,9 @@ class MainView(ctk.CTkFrame):
         ).pack(side=ctk.RIGHT, ipadx=10)
 
     def pick_file(self, entry, name: str, type: str, isResource: bool = False) -> None:
-        fileHandler = FileHandler()
-        fileHandler.initDir = self.dir
-        sourceFile = fileHandler.select_file()
-        sourceData = fileHandler.read_file(skipRows=1)
+        fileHandler = FileHandler(initDir=self.dir).select_file().read_file(skipRows=1)
+        sourceFile = fileHandler.sourceFile
+        sourceData = fileHandler.sourceData
         if sourceFile != "" or not None:
             self.dir = Path(str(sourceFile).rsplit(sep="/", maxsplit=2)[0]).absolute()
             entry.configure(state=ctk.NORMAL)
@@ -230,8 +230,8 @@ class MainView(ctk.CTkFrame):
                 title="Missing Value",
                 message=f"{''.join(infoError)}",
             )
-        fHandler = FileHandler()
-        # fHandler.save_file_loc(dirStr=self.dir)
-        fHandler.savedFile = self.controller.tmpDir
-        fHandler.export_excel(data=res)
+        fHandler = FileHandler(
+            savedFile=Path(self.controller.tmpDir).joinpath("tmpExport.xlsx")
+        ).export_excel(data=res)
+        print(fHandler.savedFile)
         return res

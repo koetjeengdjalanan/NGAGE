@@ -6,13 +6,20 @@ from tkinter import filedialog as fd
 
 
 class FileHandler:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        sourceFile: Path = None,
+        sourceData: pd.DataFrame = None,
+        initDir: Path = Path().home().absolute(),
+        destDir: Path = Path().cwd(),
+        savedFile: Path = Path("./saved.xlsx").absolute(),
+    ) -> None:
         """Handling File Dialogs and File Operations"""
-        self.sourceFile: Path = None
-        self.sourceData: pd.DataFrame = None
-        self.initDir: Path = Path().home().absolute()
-        self.destDir: Path = Path().cwd()
-        self.savedFile: Path = Path("./saved.xlsx").absolute()
+        self.sourceFile = sourceFile
+        self.sourceData = sourceData
+        self.initDir = initDir
+        self.destDir = destDir
+        self.savedFile = savedFile
         self.encodingList: list = [
             "ascii",
             "big5",
@@ -113,7 +120,9 @@ class FileHandler:
             "utf-8-sig",
         ]
 
-    def select_directory(self, dirStr: str | Path = Path().home().absolute()) -> Path:
+    def select_directory(
+        self, dirStr: str | Path = Path().home().absolute()
+    ) -> "FileHandler":
         """Select Directory / Folder Dialog
 
         Args:
@@ -130,7 +139,7 @@ class FileHandler:
         self.initDir = (
             Path(destDirectory).absolute() if destDirectory != "" else self.initDir
         )
-        return self.initDir
+        return self
 
     def save_file_loc(
         self,
@@ -138,7 +147,7 @@ class FileHandler:
         dirStr: str | Path = Path().home().absolute(),
         timeStamp: bool = True,
         promptDialog: bool = True,
-    ) -> Path:
+    ) -> "FileHandler":
         """Select File Location Dialog
 
         Args:
@@ -170,9 +179,9 @@ class FileHandler:
             else f"{dirStr}/{fileName}"
         )
         self.savedFile = Path(res).absolute() if res != "" else self.savedFile
-        return self.savedFile
+        return self
 
-    def select_file(self) -> Path:
+    def select_file(self) -> "FileHandler":
         """Select File Dialog
 
         Returns:
@@ -187,7 +196,7 @@ class FileHandler:
             title="Open Source File", initialdir=self.initDir, filetypes=filetype
         )
         self.sourceFile = Path(res).absolute() if res != "" else self.sourceFile
-        return self.sourceFile
+        return self
 
     def encoder_detect(self) -> dict | None:
         """Detect File Encoding
@@ -204,7 +213,7 @@ class FileHandler:
             else:
                 return None
 
-    def read_file(self, skipRows: int = 0) -> pd.DataFrame:
+    def read_file(self, skipRows: int = 0) -> "FileHandler":
         """Read Source File as DataFrame
 
         Args:
@@ -231,11 +240,11 @@ class FileHandler:
                 self.sourceData = pd.read_excel(io=self.sourceFile, skiprows=skipRows)
             case _:
                 raise ValueError("Invalid File Type")
-        return self.sourceData
+        return self
 
     def export_excel(
         self, data: dict[str, pd.DataFrame | dict | list] | pd.DataFrame
-    ) -> Path:
+    ) -> "FileHandler":
         """Export DataFrame to Excel
 
         Args:
@@ -254,7 +263,7 @@ class FileHandler:
                     excel_writer=writer, sheet_name=key
                 )
             writer.close()
-        return self.savedFile
+        return self
 
     def flatten_dict(
         self, data: dict, parent_key: str = "", sep: str = "_", level: int = 1

@@ -134,6 +134,7 @@ cython_debug/
 *.temp
 *.log
 .devAsset/
+debug.py
 
 # Output files
 *.csv
