@@ -31,16 +31,18 @@ class App(ctk.CTk):
         )
         self.resizable(False, False)
         self.env = env if not None else None
+        self.tmpDir = os.path.join(
+            tempfile.gettempdir(), "86c9817f304beed29e7faf6019dd3864"
+        )
         self.db: dict[str, pd.DataFrame] = self.__temp_file()
         MainView(master=self, controller=self).pack(fill="both", expand=True)
 
     def __temp_file(self) -> dict[str, pd.DataFrame]:
-        tmpDir = os.path.join(tempfile.gettempdir(), "86c9817f304beed29e7faf6019dd3864")
         res = {}
         try:
             for id, file in enumerate(self.fileList):
                 res[file] = pd.read_excel(
-                    io=os.path.join(tmpDir, "db"), sheet_name=file
+                    io=os.path.join(self.tmpDir, "db"), sheet_name=file
                 ).apply(bw_unit_normalize, axis=1)
             return res
         except Exception:
@@ -53,8 +55,10 @@ class App(ctk.CTk):
                 ),
             )
             if dbFile != "":
-                os.makedirs(name=tmpDir, exist_ok=True)
-                shutil.copy2(src=Path(dbFile), dst=Path(os.path.join(tmpDir, "db")))
+                os.makedirs(name=self.tmpDir, exist_ok=True)
+                shutil.copy2(
+                    src=Path(dbFile), dst=Path(os.path.join(self.tmpDir, "db"))
+                )
                 self.__temp_file()
             else:
                 self.destroy()

@@ -231,6 +231,7 @@ class MainView(ctk.CTkFrame):
                 message=f"{''.join(infoError)}",
             )
         fHandler = FileHandler()
-        fHandler.save_file_loc(dirStr=self.dir)
+        # fHandler.save_file_loc(dirStr=self.dir)
+        fHandler.savedFile = self.controller.tmpDir
         fHandler.export_excel(data=res)
         return res
