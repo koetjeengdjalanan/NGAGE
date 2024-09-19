@@ -1,0 +1,284 @@
+from datetime import datetime
+from pathlib import Path
+import chardet
+import pandas as pd
+from tkinter import filedialog as fd
+
+
+class FileHandler:
+    def __init__(self) -> None:
+        """Handling File Dialogs and File Operations"""
+        self.sourceFile: Path = None
+        self.sourceData: pd.DataFrame = None
+        self.initDir: Path = Path().home().absolute()
+        self.destDir: Path = Path().cwd()
+        self.savedFile: Path = Path("./saved.xlsx").absolute()
+        self.encodingList: list = [
+            "ascii",
+            "big5",
+            "big5hkscs",
+            "cp037",
+            "cp273",
+            "cp424",
+            "cp437",
+            "cp500",
+            "cp720",
+            "cp737",
+            "cp775",
+            "cp850",
+            "cp852",
+            "cp855",
+            "cp856",
+            "cp857",
+            "cp858",
+            "cp860",
+            "cp861",
+            "cp862",
+            "cp863",
+            "cp864",
+            "cp865",
+            "cp866",
+            "cp869",
+            "cp874",
+            "cp875",
+            "cp932",
+            "cp949",
+            "cp950",
+            "cp1006",
+            "cp1026",
+            "cp1125",
+            "cp1140",
+            "cp1250",
+            "cp1251",
+            "cp1252",
+            "cp1253",
+            "cp1254",
+            "cp1255",
+            "cp1256",
+            "cp1257",
+            "cp1258",
+            "euc-jp",
+            "euc-jis-2004",
+            "euc-jisx0213",
+            "euc-kr",
+            "gb2312",
+            "gbk",
+            "gb18030",
+            "hz",
+            "iso2022-jp",
+            "iso2022-jp-1",
+            "iso2022-jp-2",
+            "iso2022-jp-2004",
+            "iso2022-jp-3",
+            "iso2022-jp-ext",
+            "iso2022-kr",
+            "latin-1",
+            "iso8859-2",
+            "iso8859-3",
+            "iso8859-4",
+            "iso8859-5",
+            "iso8859-6",
+            "iso8859-7",
+            "iso8859-8",
+            "iso8859-9",
+            "iso8859-10",
+            "iso8859-11",
+            "iso8859-13",
+            "iso8859-14",
+            "iso8859-15",
+            "iso8859-16",
+            "johab",
+            "koi8-r",
+            "koi8-t",
+            "koi8-u",
+            "kz1048",
+            "mac-cyrillic",
+            "mac-greek",
+            "mac-iceland",
+            "mac-latin2",
+            "mac-roman",
+            "mac-turkish",
+            "ptcp154",
+            "shift-jis",
+            "shift-jis-2004",
+            "shift-jisx0213",
+            "utf-32",
+            "utf-32-be",
+            "utf-32-le",
+            "utf-16",
+            "utf-16-be",
+            "utf-16-le",
+            "utf-7",
+            "utf-8",
+            "utf-8-sig",
+        ]
+
+    def select_directory(self, dirStr: str | Path = Path().home().absolute()) -> Path:
+        """Select Directory / Folder Dialog
+
+        Args:
+            dirStr (Path, optional): Defined where the directory or folder should start. Defaults to Path().home().absolute().
+
+        Returns:
+            Path: Selected Directory / Folder
+        """
+        destDirectory = fd.askdirectory(
+            initialdir=dirStr,
+            mustexist=True,
+            title="Select Directory / Folder",
+        )
+        self.initDir = (
+            Path(destDirectory).absolute() if destDirectory != "" else self.initDir
+        )
+        return self.initDir
+
+    def save_file_loc(
+        self,
+        fileName="EXPORT.xlsx",
+        dirStr: str | Path = Path().home().absolute(),
+        timeStamp: bool = True,
+        promptDialog: bool = True,
+    ) -> Path:
+        """Select File Location Dialog
+
+        Args:
+            fileName (str, optional): Defined the file output name. Defaults to "EXPORT.xlsx".
+            dirStr (str | Path, optional): Defined where the dialog should start. Defaults to Path().home().absolute().
+            timeStamp (bool, optional): With timestamp?. Defaults to True.
+            promptDialog (bool, optional): Prompt the dialog?. Defaults to True.
+
+        Returns:
+            Path: Full file address in strPath
+        """
+        if timeStamp:
+            fileName = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}-{fileName}"
+        filetype = (
+            ("Excel Files", "*.xls *.xlsx *.xlsm *.xlsb"),
+            ("CSV Files", "*.csv"),
+            ("All Files", "*.*"),
+        )
+        res = (
+            fd.asksaveasfilename(
+                title="Save File As ...",
+                initialdir=dirStr if dirStr != "" else self.destDir,
+                filetypes=filetype,
+                defaultextension=".xlsx",
+                initialfile=fileName,
+                confirmoverwrite=True,
+            )
+            if promptDialog
+            else f"{dirStr}/{fileName}"
+        )
+        self.savedFile = Path(res).absolute() if res != "" else self.savedFile
+        return self.savedFile
+
+    def select_file(self) -> Path:
+        """Select File Dialog
+
+        Returns:
+            Path: Selected file full address in strPath
+        """
+        filetype = (
+            ("CSV Files", "*.csv"),
+            ("Excel Files", "*.xls *.xlsx *.xlsm *.xlsb"),
+            ("All Files", "*.*"),
+        )
+        res = fd.askopenfilename(
+            title="Open Source File", initialdir=self.initDir, filetypes=filetype
+        )
+        self.sourceFile = Path(res).absolute() if res != "" else self.sourceFile
+        return self.sourceFile
+
+    def encoder_detect(self) -> dict | None:
+        """Detect File Encoding
+
+        Returns:
+            dict | None: The result of encoding detection if any in database, otherwise None
+        """
+        with open(self.sourceFile, "rb") as file:
+            data = file.read()
+            res = chardet.detect(data)
+            file.close()
+            if res["encoding"].lower() in self.encodingList:
+                return res
+            else:
+                return None
+
+    def read_file(self, skipRows: int = 0) -> pd.DataFrame:
+        """Read Source File as DataFrame
+
+        Args:
+            skipRows (int, optional): How many line should be skipped. Defaults to 0.
+
+        Raises:
+            FileNotFoundError: No File Selected!
+            ValueError: Invalid Encoding
+            ValueError: Invalid File Type or No File Selected!
+
+        Returns:
+            pd.DataFrame: The source data in DataFrame
+        """
+        if self.sourceFile is None:
+            raise FileNotFoundError("No File Selected!")
+        match self.sourceFile.suffix:
+            case ".csv":
+                if self.encoder_detect() is None:
+                    raise ValueError("Invalid Encoding")
+                self.sourceData = pd.read_csv(
+                    filepath_or_buffer=self.sourceFile, skiprows=skipRows
+                )
+            case ".xlsx" | ".xls" | ".xlsm" | ".xlsb":
+                self.sourceData = pd.read_excel(io=self.sourceFile, skiprows=skipRows)
+            case _:
+                raise ValueError("Invalid File Type")
+        return self.sourceData
+
+    def export_excel(
+        self, data: dict[str, pd.DataFrame | dict | list] | pd.DataFrame
+    ) -> Path:
+        """Export DataFrame to Excel
+
+        Args:
+            data (dict[str, pd.DataFrame  |  dict  |  list] | pd.DataFrame): data to be exported
+
+        Returns:
+            Path: The saved file full address in strPath
+        """
+        writer = pd.ExcelWriter(path=self.savedFile, engine="xlsxwriter")
+        if isinstance(data, pd.DataFrame):
+            data.to_excel(excel_writer=writer, sheet_name="Sheet1")
+            writer.close()
+        if isinstance(data, dict):
+            for key in data.keys():
+                pd.DataFrame(data=data[key]).to_excel(
+                    excel_writer=writer, sheet_name=key
+                )
+            writer.close()
+        return self.savedFile
+
+    def flatten_dict(
+        self, data: dict, parent_key: str = "", sep: str = "_", level: int = 1
+    ) -> dict:
+        """Flatten a nested dictionary
+
+        Args:
+            data (dict): Data with nested dictionary
+            parent_key (str, optional): Which key is to parented. Defaults to "".
+            sep (str, optional): New key separators. Defaults to "_".
+            level (int, optional): How many nested shall there be. Defaults to 1.
+
+        Returns:
+            dict: the flattened dictionary
+        """
+        items = []
+        for key, value in data.items():
+            new_key = f"{parent_key}{sep}{key}" if parent_key != "" else key
+            if isinstance(value, dict) and level > 0:
+                items.extend(
+                    self.flatten_dict(
+                        data=value, parent_key=new_key, level=level - 1
+                    ).items()
+                )
+            else:
+                items.append((new_key, value))
+        return dict(items)
