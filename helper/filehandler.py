@@ -220,7 +220,7 @@ class FileHandler:
             skipRows (int, optional): How many line should be skipped. Defaults to 0.
 
         Raises:
-            FileNotFoundError: No File Selected!
+            ValueError: None Value in `FileHandler.sourcefile`
             ValueError: Invalid Encoding
             ValueError: Invalid File Type or No File Selected!
 
@@ -228,18 +228,18 @@ class FileHandler:
             pd.DataFrame: The source data in DataFrame
         """
         if self.sourceFile is None:
-            raise FileNotFoundError("No File Selected!")
+            raise ValueError("None Value in `FileHandler.sourcefile`")
         match self.sourceFile.suffix:
             case ".csv":
                 if self.encoder_detect() is None:
-                    raise ValueError("Invalid Encoding")
+                    raise ValueError("Invalid Encoding", self.encoder_detect())
                 self.sourceData = pd.read_csv(
                     filepath_or_buffer=self.sourceFile, skiprows=skipRows
                 )
             case ".xlsx" | ".xls" | ".xlsm" | ".xlsb":
                 self.sourceData = pd.read_excel(io=self.sourceFile, skiprows=skipRows)
             case _:
-                raise ValueError("Invalid File Type")
+                raise ValueError("Invalid File Type", self.sourceFile.suffix)
         return self
 
     def export_excel(
@@ -250,19 +250,25 @@ class FileHandler:
         Args:
             data (dict[str, pd.DataFrame  |  dict  |  list] | pd.DataFrame): data to be exported
 
+        Raises:
+            ValueError: Invalid Data Type
+
         Returns:
             Path: The saved file full address in strPath
         """
         writer = pd.ExcelWriter(path=self.savedFile, engine="xlsxwriter")
-        if isinstance(data, pd.DataFrame):
-            data.to_excel(excel_writer=writer, sheet_name="Sheet1")
-            writer.close()
-        if isinstance(data, dict):
-            for key in data.keys():
-                pd.DataFrame(data=data[key]).to_excel(
-                    excel_writer=writer, sheet_name=key
-                )
-            writer.close()
+        match data:
+            case pd.DataFrame():
+                data.to_excel(excel_writer=writer, sheet_name="Sheet1")
+                writer.close()
+            case dict():
+                for key in data.keys():
+                    pd.DataFrame(data=data[key]).to_excel(
+                        excel_writer=writer, sheet_name=key
+                    )
+                writer.close()
+            case _:
+                raise ValueError("Invalid Data Type", type(data))
         return self
 
     def flatten_dict(

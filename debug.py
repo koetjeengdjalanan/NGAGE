@@ -1,20 +1,39 @@
 import pandas as pd
+import numpy as np
 from pathlib import Path
 from helper.filehandler import FileHandler
 
-# raw = pd.read_csv(
-#     filepath_or_buffer=Path(
-#         r"C:\Users\marti\Documents\NipponTelephonyTelecomination\Playground\ReportingAutomation\.devAsset\res['F5'].csv"
-#     ).absolute()
-# )
+# data = [
+#     pd.DataFrame(
+#         np.random.randint(0, 100, size=(100, 2)), columns=["Number1", "Number2"]
+#     ),
+#     {
+#         "two.1": pd.DataFrame(
+#             np.random.randint(0, 100, size=(100, 2)), columns=["Number1", "Number2"]
+#         ),
+#         "two.2": pd.DataFrame(
+#             np.random.randint(0, 100, size=(100, 2)), columns=["Number1", "Number2"]
+#         ),
+#     },
+# ]
 
-# cpu_columns = [f"cpu{i}" for i in range(8)]
-# raw[cpu_columns] = raw[cpu_columns].map(lambda x: float(str(x).split("%")[0]) / 100)
+# # print(type(data[0]).__str__)
 
-# raw["95th Memory"] = raw["95th Memory"].apply(
-#     lambda x: float(str(x).split("%")[0]) / 100
-# )
-# print(raw)
+# for _ in data:
+#     # print(_)
+#     match _:
+#         case pd.DataFrame():
+#             print("DataFrame")
+#         case dict():
+#             print("Dictionary")
 
-fh = FileHandler()
-print(fh.__dict__)
+error = [
+    '  File "spam.py", line 3, in <module>\n    spam.eggs()\n',
+    '  File "eggs.py", line 42, in eggs\n    return "bacon"\n',
+]
+
+formatted = ""
+for _ in error:
+    formatted += _
+
+print(formatted)

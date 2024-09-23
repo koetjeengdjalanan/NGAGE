@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 import shutil
 import tempfile
+import traceback
 import customtkinter as ctk
 from dotenv import load_dotenv
 import pandas as pd
@@ -71,5 +72,48 @@ def environment() -> dict | None:
     return None
 
 
-app = App(start_size=(600, 700), env=environment())
-app.mainloop()
+def handle_error(exception, value, tb):
+    print(exception, value, tb)
+    error_window = ctk.CTkToplevel(takefocus=True)
+    error_window.title("An error has occurred")
+    error_window.attributes("-topmost", True)
+    error_window.bell()
+
+    # Disable the main app window
+    app.attributes("-disabled", True)
+
+    def on_close():
+        app.attributes("-disabled", False)
+        error_window.destroy()
+        app.destroy()
+
+    def on_focus(event):
+        error_window.bell()
+        error_window.focus()
+
+    error_window.bind("<FocusOut>", on_focus)
+
+    ctk.CTkLabel(
+        master=error_window, text=value, font=ctk.CTkFont(size=24, weight="bold")
+    ).pack(pady=(20, 0), padx=20)
+    error_message = ctk.CTkTextbox(master=error_window, wrap="none")
+    error_message.insert(
+        index="0.0", text=traceback.format_exc(chain=True), tags="error"
+    )
+    error_message.configure(state="disabled")
+    error_message.pack(pady=20, padx=20, fill="both", expand=True)
+    error_button = ctk.CTkButton(
+        master=error_window,
+        text="Close",
+        command=on_close,
+    )
+    error_button.pack(pady=10, padx=20, side="right")
+
+
+if __name__ == "__main__":
+    import sys
+
+    sys.excepthook = handle_error
+    app = App(start_size=(600, 700), env=environment())
+    app.report_callback_exception = handle_error
+    app.mainloop()
