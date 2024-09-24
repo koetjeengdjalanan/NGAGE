@@ -128,3 +128,12 @@ def process_f5(raw: dict[str, pd.DataFrame], db: pd.DataFrame) -> pd.DataFrame:
     )
     res = pd.merge(res, raw["mem"], how="left", on="Hostname")
     return res
+
+
+def conc_df(
+    orig: dict[str, pd.DataFrame], ext: dict[str, pd.DataFrame]
+) -> dict[str, pd.DataFrame]:
+    res = {}
+    for key in orig.keys():
+        res[key] = pd.concat(objs=[orig[key], ext[key]], axis=0, ignore_index=True)
+    return res

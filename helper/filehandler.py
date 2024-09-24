@@ -129,7 +129,7 @@ class FileHandler:
             dirStr (Path, optional): Defined where the directory or folder should start. Defaults to Path().home().absolute().
 
         Returns:
-            Path: Selected Directory / Folder
+            FileHandler: FileHandler Class Object
         """
         destDirectory = fd.askdirectory(
             initialdir=dirStr,
@@ -157,7 +157,7 @@ class FileHandler:
             promptDialog (bool, optional): Prompt the dialog?. Defaults to True.
 
         Returns:
-            Path: Full file address in strPath
+            FileHandler: FileHandler Class Object
         """
         if timeStamp:
             fileName = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}-{fileName}"
@@ -185,7 +185,7 @@ class FileHandler:
         """Select File Dialog
 
         Returns:
-            Path: Selected file full address in strPath
+            FileHandler: FileHandler Class Object
         """
         filetype = (
             ("CSV Files", "*.csv"),
@@ -202,7 +202,7 @@ class FileHandler:
         """Detect File Encoding
 
         Returns:
-            dict | None: The result of encoding detection if any in database, otherwise None
+            FileHandler: FileHandler Class Object
         """
         with open(self.sourceFile, "rb") as file:
             data = file.read()
@@ -225,10 +225,10 @@ class FileHandler:
             ValueError: Invalid File Type or No File Selected!
 
         Returns:
-            pd.DataFrame: The source data in DataFrame
+            FileHandler: FileHandler Class Object
         """
-        if self.sourceFile is None:
-            raise ValueError("None Value in `FileHandler.sourcefile`")
+        if not self.sourceFile.is_file():
+            raise FileNotFoundError(f"{self.sourceFile} is not a file!")
         match self.sourceFile.suffix:
             case ".csv":
                 if self.encoder_detect() is None:
@@ -239,7 +239,7 @@ class FileHandler:
             case ".xlsx" | ".xls" | ".xlsm" | ".xlsb":
                 self.sourceData = pd.read_excel(io=self.sourceFile, skiprows=skipRows)
             case _:
-                raise ValueError("Invalid File Type", self.sourceFile.suffix)
+                raise TypeError("Invalid File Type", self.sourceFile.suffix)
         return self
 
     def export_excel(
@@ -254,7 +254,7 @@ class FileHandler:
             ValueError: Invalid Data Type
 
         Returns:
-            Path: The saved file full address in strPath
+            FileHandler: FileHandler Class Object
         """
         writer = pd.ExcelWriter(path=self.savedFile, engine="xlsxwriter")
         match data:
@@ -283,7 +283,7 @@ class FileHandler:
             level (int, optional): How many nested shall there be. Defaults to 1.
 
         Returns:
-            dict: the flattened dictionary
+            FileHandler: FileHandler Class Object
         """
         items = []
         for key, value in data.items():

@@ -6,6 +6,7 @@ import pandas as pd
 
 from helper.processing import (
     bw_unit_normalize,
+    conc_df,
     process_basic,
     process_f5,
     process_with_from_n_to,
@@ -170,9 +171,11 @@ class MainView(ctk.CTkFrame):
         ).pack(side=ctk.RIGHT, ipadx=10)
 
     def pick_file(self, entry, name: str, type: str, isResource: bool = False) -> None:
-        fileHandler = FileHandler(initDir=self.dir).select_file().read_file(skipRows=1)
+        fileHandler = FileHandler(initDir=self.dir).select_file()
         sourceFile = fileHandler.sourceFile
-        sourceData = fileHandler.sourceData
+        if sourceFile is None:
+            return None
+        sourceData = fileHandler.read_file(skipRows=1).sourceData
         if sourceFile != "" or not None:
             self.dir = Path(str(sourceFile).rsplit(sep="/", maxsplit=2)[0]).absolute()
             entry.configure(state=ctk.NORMAL)
@@ -209,7 +212,12 @@ class MainView(ctk.CTkFrame):
                 infoError.append(f"{_} \t Not Fount in Input, Skipping!\n")
                 continue
             res[_] = process_with_from_n_to(
-                raw=self.rawData[_], db=self.controller.db[_]
+                raw=(
+                    self.rawData[_]
+                    if "Extranet" not in self.rawData
+                    else conc_df(orig=self.rawData[_], ext=self.rawData["Extranet"])
+                ),
+                db=self.controller.db[_],
             )
         for _ in self.controller.fileList[2:-1]:
             if _ not in self.rawData:
