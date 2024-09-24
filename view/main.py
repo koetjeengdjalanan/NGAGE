@@ -4,6 +4,7 @@ import tkinter.messagebox
 import customtkinter as ctk
 import pandas as pd
 
+from helper.ext_excel import ExtendedExcelProcessor
 from helper.processing import (
     bw_unit_normalize,
     conc_df,
@@ -20,14 +21,29 @@ class MainView(ctk.CTkFrame):
         self.controller = controller
         self.dir: str = Path().cwd()
         self.inputList: list[str] = controller.fileList[:-1]
+        self.rawData: dict[str, dict[str, pd.DataFrame]] = {}
         self.__general_input_forms()
         self.__fFive_input_forms()
         self.__action_button()
-        print(Path(self.controller.tmpDir).joinpath("tmpExport.xlsx"))
+        if self.controller.env["DEV"]:
+            self.insertOnDev()
+
+    def insertOnDev(self):
+        for each in self.controller.env["sourceFiles"]:
+            if each == "F5":
+                continue
+            print(f"assign: {each}")
+            self.rawData[each] = {}
+            for type in self.controller.env["sourceFiles"][each]:
+                self.pick_file(
+                    entry=self.inputFilePathInput[each][type],
+                    name=each,
+                    type=f"bw-{type}",
+                    filePath=Path(self.controller.env["sourceFiles"][each][type]),
+                )
 
     def __general_input_forms(self) -> None:
         ### General Inputs Forms
-        self.rawData: dict[str, dict[str, pd.DataFrame]] = {}
         self.inputFilePathInput: dict[str, dict[str, ctk.CTkEntry]] = {}
         inputFormsFrame = ctk.CTkFrame(master=self)
         inputFormsFrame.pack(fill=ctk.BOTH, expand=False, padx=10, pady=10)
@@ -170,8 +186,19 @@ class MainView(ctk.CTkFrame):
             master=actionButtonFrame, text="Confirm", command=self.process_data
         ).pack(side=ctk.RIGHT, ipadx=10)
 
-    def pick_file(self, entry, name: str, type: str, isResource: bool = False) -> None:
-        fileHandler = FileHandler(initDir=self.dir).select_file()
+    def pick_file(
+        self,
+        entry,
+        name: str,
+        type: str,
+        isResource: bool = False,
+        filePath: str = "",
+    ) -> None:
+        fileHandler = (
+            FileHandler(initDir=self.dir).select_file()
+            if filePath == ""
+            else FileHandler(initDir=self.dir, sourceFile=filePath)
+        )
         sourceFile = fileHandler.sourceFile
         if sourceFile is None:
             return None
@@ -238,8 +265,12 @@ class MainView(ctk.CTkFrame):
                 title="Missing Value",
                 message=f"{''.join(infoError)}",
             )
-        fHandler = FileHandler(
-            savedFile=Path(self.controller.tmpDir).joinpath("tmpExport.xlsx")
-        ).export_excel(data=res)
-        print(fHandler.savedFile)
+        # fHandler = FileHandler(
+        #     savedFile=Path(".devAsset").joinpath("tmpExport.xlsx")
+        # ).export_excel(data=res)
+        # print(fHandler.savedFile)
+        extExcel = ExtendedExcelProcessor(
+            resFileLoc=Path(".devAsset").joinpath("tmpExport.xlsx"), data=res
+        ).export_excel()
+        print(extExcel.resFileLoc)
         return res

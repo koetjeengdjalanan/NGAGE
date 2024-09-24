@@ -4,7 +4,7 @@ import shutil
 import tempfile
 import traceback
 import customtkinter as ctk
-from dotenv import load_dotenv
+import toml
 import pandas as pd
 from tkinter import filedialog as fd
 
@@ -66,9 +66,10 @@ class App(ctk.CTk):
 
 
 def environment() -> dict | None:
-    if Path("./.env").is_file():
-        load_dotenv(dotenv_path="./.env")
-        return {}
+    envPath = Path("./.env.toml").absolute()
+    if envPath.is_file():
+        with open(envPath, "r") as file:
+            return toml.load(file)
     return None
 
 
