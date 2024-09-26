@@ -122,8 +122,10 @@ def process_f5(raw: dict[str, pd.DataFrame], db: pd.DataFrame) -> pd.DataFrame:
         lambda x: float(str(x).split("%")[0]) / 100
     )
     res = pd.merge(res, rawCpu, how="left", on="Hostname")
-    raw["mem"].rename(columns={"Metric": "Hostname"}, inplace=True)
-    raw["mem"]["95th Memory"] = raw["mem"]["95th Memory"].apply(
+    raw["mem"].rename(
+        columns={"Metric": "Hostname", "95th Memory": "mem %"}, inplace=True
+    )
+    raw["mem"]["mem %"] = raw["mem"]["mem %"].apply(
         lambda x: float(str(x).split("%")[0]) / 100
     )
     res = pd.merge(res, raw["mem"], how="left", on="Hostname")

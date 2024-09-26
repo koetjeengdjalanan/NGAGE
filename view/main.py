@@ -30,16 +30,20 @@ class MainView(ctk.CTkFrame):
 
     def insertOnDev(self):
         for each in self.controller.env["sourceFiles"]:
-            if each == "F5":
-                continue
             print(f"assign: {each}")
             self.rawData[each] = {}
             for type in self.controller.env["sourceFiles"][each]:
+                print(f"⊢→ {type}")
                 self.pick_file(
-                    entry=self.inputFilePathInput[each][type],
+                    entry=(
+                        self.inputFilePathInput[each][type]
+                        if each != "F5"
+                        else self.f5FilePathInput[type]
+                    ),
                     name=each,
-                    type=f"bw-{type}",
+                    type=type,
                     filePath=Path(self.controller.env["sourceFiles"][each][type]),
+                    isResource=False if "bw-" in type else True,
                 )
 
     def __general_input_forms(self) -> None:
@@ -65,25 +69,25 @@ class MainView(ctk.CTkFrame):
                 column=0, row=id, sticky=ctk.W, padx=5, pady=5
             )
             self.inputFilePathInput[input] = {}
-            self.inputFilePathInput[input]["in"] = ctk.CTkEntry(
+            self.inputFilePathInput[input]["bw-in"] = ctk.CTkEntry(
                 master=inputFormsFrame, state=ctk.DISABLED
             )
-            self.inputFilePathInput[input]["in"].grid(
+            self.inputFilePathInput[input]["bw-in"].grid(
                 column=1, row=id, sticky="nsew", padx=5, pady=5
             )
-            self.inputFilePathInput[input]["in"].bind(
+            self.inputFilePathInput[input]["bw-in"].bind(
                 "<1>",
                 lambda event, x=input: self.pick_file(
                     entry=self.inputFilePathInput[x]["in"], name=x, type="bw-in"
                 ),
             )
-            self.inputFilePathInput[input]["out"] = ctk.CTkEntry(
+            self.inputFilePathInput[input]["bw-out"] = ctk.CTkEntry(
                 master=inputFormsFrame, state=ctk.DISABLED
             )
-            self.inputFilePathInput[input]["out"].grid(
+            self.inputFilePathInput[input]["bw-out"].grid(
                 column=2, row=id, sticky="nsew", padx=5, pady=5
             )
-            self.inputFilePathInput[input]["out"].bind(
+            self.inputFilePathInput[input]["bw-out"].bind(
                 "<1>",
                 lambda event, x=input: self.pick_file(
                     entry=self.inputFilePathInput[x]["out"], name=x, type="bw-out"
@@ -92,7 +96,7 @@ class MainView(ctk.CTkFrame):
 
     def __fFive_input_forms(self) -> None:
         ### F5 Input Forms
-        f5FilePathInput = {
+        self.f5FilePathInput: dict[str, str | None] = {
             "bw-in": None,
             "bw-out": None,
             "pdc-cpu": None,
@@ -109,72 +113,76 @@ class MainView(ctk.CTkFrame):
         ctk.CTkLabel(master=f5FormsFrame, text="Bandwidth In").grid(
             column=0, row=1, sticky="nsew", padx=5, pady=(5, 0)
         )
-        f5FilePathInput["bw-in"] = ctk.CTkEntry(master=f5FormsFrame, state=ctk.DISABLED)
-        f5FilePathInput["bw-in"].grid(
+        self.f5FilePathInput["bw-in"] = ctk.CTkEntry(
+            master=f5FormsFrame, state=ctk.DISABLED
+        )
+        self.f5FilePathInput["bw-in"].grid(
             column=0, row=2, sticky="nsew", padx=5, pady=(0, 5)
         )
-        f5FilePathInput["bw-in"].bind(
+        self.f5FilePathInput["bw-in"].bind(
             "<1>",
             lambda event, x="bw-in": self.pick_file(
-                entry=f5FilePathInput[x], name="F5", type=x
+                entry=self.f5FilePathInput[x], name="F5", type=x
             ),
         )
         ctk.CTkLabel(master=f5FormsFrame, text="Bandwidth Out").grid(
             column=1, row=1, sticky="nsew", padx=5, pady=(5, 0)
         )
-        f5FilePathInput["bw-out"] = ctk.CTkEntry(
+        self.f5FilePathInput["bw-out"] = ctk.CTkEntry(
             master=f5FormsFrame, state=ctk.DISABLED
         )
-        f5FilePathInput["bw-out"].grid(
+        self.f5FilePathInput["bw-out"].grid(
             column=1, row=2, sticky="nsew", padx=5, pady=(0, 5)
         )
-        f5FilePathInput["bw-out"].bind(
+        self.f5FilePathInput["bw-out"].bind(
             "<1>",
             lambda event, x="bw-out": self.pick_file(
-                entry=f5FilePathInput[x], name="F5", type=x
+                entry=self.f5FilePathInput[x], name="F5", type=x
             ),
         )
         ctk.CTkLabel(master=f5FormsFrame, text="PDC CPU 95th %").grid(
             column=0, row=3, sticky="nsew", padx=5, pady=(5, 0)
         )
-        f5FilePathInput["pdc-cpu"] = ctk.CTkEntry(
+        self.f5FilePathInput["pdc-cpu"] = ctk.CTkEntry(
             master=f5FormsFrame, state=ctk.DISABLED
         )
-        f5FilePathInput["pdc-cpu"].grid(
+        self.f5FilePathInput["pdc-cpu"].grid(
             column=0, row=4, sticky="nsew", padx=5, pady=(0, 5)
         )
-        f5FilePathInput["pdc-cpu"].bind(
+        self.f5FilePathInput["pdc-cpu"].bind(
             "<1>",
             lambda event, x="pdc-cpu": self.pick_file(
-                entry=f5FilePathInput[x], name="F5", type=x, isResource=True
+                entry=self.f5FilePathInput[x], name="F5", type=x, isResource=True
             ),
         )
         ctk.CTkLabel(master=f5FormsFrame, text="SDC CPU 95th %").grid(
             column=1, row=3, sticky="nsew", padx=5, pady=(5, 0)
         )
-        f5FilePathInput["sdc-cpu"] = ctk.CTkEntry(
+        self.f5FilePathInput["sdc-cpu"] = ctk.CTkEntry(
             master=f5FormsFrame, state=ctk.DISABLED
         )
-        f5FilePathInput["sdc-cpu"].grid(
+        self.f5FilePathInput["sdc-cpu"].grid(
             column=1, row=4, sticky="nsew", padx=5, pady=(0, 5)
         )
-        f5FilePathInput["sdc-cpu"].bind(
+        self.f5FilePathInput["sdc-cpu"].bind(
             "<1>",
             lambda event, x="sdc-cpu": self.pick_file(
-                entry=f5FilePathInput[x], name="F5", type=x, isResource=True
+                entry=self.f5FilePathInput[x], name="F5", type=x, isResource=True
             ),
         )
         ctk.CTkLabel(master=f5FormsFrame, text="Mem 95th %").grid(
             column=0, row=5, sticky="nsew", padx=5, pady=(5, 0), columnspan=2
         )
-        f5FilePathInput["mem"] = ctk.CTkEntry(master=f5FormsFrame, state=ctk.DISABLED)
-        f5FilePathInput["mem"].grid(
+        self.f5FilePathInput["mem"] = ctk.CTkEntry(
+            master=f5FormsFrame, state=ctk.DISABLED
+        )
+        self.f5FilePathInput["mem"].grid(
             column=0, row=6, sticky="nsew", padx=5, pady=(0, 5), columnspan=2
         )
-        f5FilePathInput["mem"].bind(
+        self.f5FilePathInput["mem"].bind(
             "<1>",
             lambda event, x="mem": self.pick_file(
-                entry=f5FilePathInput[x], name="F5", type=x, isResource=True
+                entry=self.f5FilePathInput[x], name="F5", type=x, isResource=True
             ),
         )
 

@@ -33,6 +33,7 @@ class ExtendedExcelProcessor:
                 {"num_format": "0.000 %", "bg_color": "#00b050"}
             )
             colLs = df.columns.str.contains("%").nonzero()[0].tolist()
+            colLs += df.columns.str.contains("cpu").nonzero()[0].tolist()
             for colId in colLs:
                 worksheet.conditional_format(
                     1,
@@ -76,7 +77,8 @@ class ExtendedExcelProcessor:
             df = pd.DataFrame(data=self.data[key])
             df.to_excel(excel_writer=writer, sheet_name=key, index=False)
             worksheet = writer.sheets[key]
-            worksheet.autofit()
             percent_cond_fmt(worksheet, df)
+            worksheet.autofit()
+            worksheet.freeze_panes(1, 0)
         writer.close()
         return self
