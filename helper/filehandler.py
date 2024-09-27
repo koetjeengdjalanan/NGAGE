@@ -1,5 +1,6 @@
 from datetime import datetime
 from pathlib import Path
+from typing import Union, Dict, Any, List
 import chardet
 import pandas as pd
 from tkinter import filedialog as fd
@@ -243,12 +244,15 @@ class FileHandler:
         return self
 
     def export_excel(
-        self, data: dict[str, pd.DataFrame | dict | list] | pd.DataFrame
+        self,
+        data: Union[
+            pd.DataFrame, Dict[str, Union[List, pd.DataFrame, Dict[str, Any]]]
+        ] = None,
     ) -> "FileHandler":
         """Export DataFrame to Excel
 
         Args:
-            data (dict[str, pd.DataFrame  |  dict  |  list] | pd.DataFrame): data to be exported
+            data (dict[str, pd.DataFrame  |  dict  |  list] | pd.DataFrame, optional): data to be exported. Defaults to None.
 
         Raises:
             ValueError: Invalid Data Type
@@ -256,6 +260,7 @@ class FileHandler:
         Returns:
             FileHandler: FileHandler Class Object
         """
+        data = data if data is not None else self.sourceData
         writer = pd.ExcelWriter(path=self.savedFile, engine="xlsxwriter")
         match data:
             case pd.DataFrame():
@@ -297,3 +302,22 @@ class FileHandler:
             else:
                 items.append((new_key, value))
         return dict(items)
+
+    def open_explorer(self) -> "FileHandler":
+        """Open File Explorer
+
+        Returns:
+            FileHandler: FileHandler Class Object
+        """
+        from subprocess import run
+        from platform import system
+
+        match system():
+            case "Windows":
+                run(args=["explorer", "/select,", self.savedFile])
+            case "Darwin":
+                run(args=["open", "-R", self.savedFile])
+            case "Linux":
+                run(args=["xdg-open", self.savedFile.parent])
+
+        return self

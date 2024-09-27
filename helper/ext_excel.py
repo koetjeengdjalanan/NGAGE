@@ -1,14 +1,11 @@
-from pathlib import Path
 from typing import Dict
 import pandas as pd
 
+from helper.filehandler import FileHandler
 
-class ExtendedExcelProcessor:
-    def __init__(self, resFileLoc: Path, data: Dict[str, pd.DataFrame]) -> None:
-        self.resFileLoc = resFileLoc
-        self.data = data
 
-    def export_excel(self) -> "ExtendedExcelProcessor":
+class ExtendedExcelProcessor(FileHandler):
+    def ext_export(self, data: Dict[str, pd.DataFrame]) -> "ExtendedExcelProcessor":
         """Export DataFrame to Excel
 
         Raises:
@@ -17,9 +14,10 @@ class ExtendedExcelProcessor:
         Returns:
             ExtendedExcelProcessor: ExtendedExcelProcessor Class Object
         """
-        if not isinstance(self.data, dict):
-            raise ValueError("Invalid Data Type", type(self.data))
-        writer = pd.ExcelWriter(path=self.resFileLoc, engine="xlsxwriter")
+        data = data if data is not None else self.sourceData
+        if not isinstance(data, dict):
+            raise ValueError("Invalid Data Type", type(data))
+        writer = pd.ExcelWriter(path=self.savedFile, engine="xlsxwriter")
         workbook = writer.book
 
         def percent_cond_fmt(worksheet, df) -> None:
@@ -73,8 +71,8 @@ class ExtendedExcelProcessor:
                     },
                 )
 
-        for key in self.data.keys():
-            df = pd.DataFrame(data=self.data[key])
+        for key in data.keys():
+            df = pd.DataFrame(data=data[key])
             df.to_excel(excel_writer=writer, sheet_name=key, index=False)
             worksheet = writer.sheets[key]
             percent_cond_fmt(worksheet, df)

@@ -273,12 +273,12 @@ class MainView(ctk.CTkFrame):
                 title="Missing Value",
                 message=f"{''.join(infoError)}",
             )
-        # fHandler = FileHandler(
-        #     savedFile=Path(".devAsset").joinpath("tmpExport.xlsx")
-        # ).export_excel(data=res)
-        # print(fHandler.savedFile)
-        extExcel = ExtendedExcelProcessor(
-            resFileLoc=Path(".devAsset").joinpath("tmpExport.xlsx"), data=res
-        ).export_excel()
-        print(extExcel.resFileLoc)
+        extExcel = (
+            ExtendedExcelProcessor()
+            .save_file_loc(dirStr=self.dir)
+            .ext_export(data=res)
+            .open_explorer()
+        )
+        print(extExcel.savedFile)
+        self.controller.destroy()
         return res
