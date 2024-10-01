@@ -78,7 +78,7 @@ class MainView(ctk.CTkFrame):
             self.inputFilePathInput[input]["bw-in"].bind(
                 "<1>",
                 lambda event, x=input: self.pick_file(
-                    entry=self.inputFilePathInput[x]["in"], name=x, type="bw-in"
+                    entry=self.inputFilePathInput[x]["bw-in"], name=x, type="bw-in"
                 ),
             )
             self.inputFilePathInput[input]["bw-out"] = ctk.CTkEntry(
@@ -90,7 +90,7 @@ class MainView(ctk.CTkFrame):
             self.inputFilePathInput[input]["bw-out"].bind(
                 "<1>",
                 lambda event, x=input: self.pick_file(
-                    entry=self.inputFilePathInput[x]["out"], name=x, type="bw-out"
+                    entry=self.inputFilePathInput[x]["bw-out"], name=x, type="bw-out"
                 ),
             )
 
@@ -252,17 +252,24 @@ class MainView(ctk.CTkFrame):
                     if "Extranet" not in self.rawData
                     else conc_df(orig=self.rawData[_], ext=self.rawData["Extranet"])
                 ),
-                db=self.controller.db[_],
+                lookUpTable=self.controller.lookUpTable[_],
             )
         for _ in self.controller.fileList[2:-1]:
             if _ not in self.rawData:
                 infoError.append(f"{_} \t Not Fount in Input, Skipping!\n")
                 continue
-            res[_] = process_basic(raw=self.rawData[_], db=self.controller.db[_])
+            res[_] = process_basic(
+                raw=(
+                    self.rawData[_]
+                    if "Extranet" not in self.rawData
+                    else conc_df(orig=self.rawData[_], ext=self.rawData["Extranet"])
+                ),
+                lookUpTable=self.controller.lookUpTable[_],
+            )
         if self.controller.fileList[-1] in self.rawData.keys():
             res[self.controller.fileList[-1]] = process_f5(
                 raw=self.rawData[self.controller.fileList[-1]],
-                db=self.controller.db[self.controller.fileList[-1]],
+                lookUpTable=self.controller.lookUpTable[self.controller.fileList[-1]],
             )
         else:
             infoError.append(

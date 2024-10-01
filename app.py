@@ -35,7 +35,7 @@ class App(ctk.CTk):
         self.tmpDir = os.path.join(
             tempfile.gettempdir(), "86c9817f304beed29e7faf6019dd3864"
         )
-        self.db: dict[str, pd.DataFrame] = self.__temp_file()
+        self.lookUpTable: dict[str, pd.DataFrame] = self.__temp_file()
         MainView(master=self, controller=self).pack(fill="both", expand=True)
 
     def __temp_file(self) -> dict[str, pd.DataFrame]:
@@ -43,22 +43,22 @@ class App(ctk.CTk):
         try:
             for id, file in enumerate(self.fileList):
                 res[file] = pd.read_excel(
-                    io=os.path.join(self.tmpDir, "db"), sheet_name=file
+                    io=os.path.join(self.tmpDir, "LookupTable"), sheet_name=file
                 ).apply(bw_unit_normalize, axis=1)
             return res
         except Exception:
-            dbFile = fd.askopenfilename(
-                title="DB File Not Found, Please Choose Database!",
+            lTFile = fd.askopenfilename(
+                title="Lookup Table File Not Found, Please Choose Lookup Table!",
                 initialdir="~",
                 filetypes=(
                     ("Excel Files", "*.xls *.xlsx *.xlsm *.xlsb"),
                     ("All Files", "*.*"),
                 ),
             )
-            if dbFile != "":
+            if lTFile != "":
                 os.makedirs(name=self.tmpDir, exist_ok=True)
                 shutil.copy2(
-                    src=Path(dbFile), dst=Path(os.path.join(self.tmpDir, "db"))
+                    src=Path(lTFile), dst=Path(os.path.join(self.tmpDir, "LookupTable"))
                 )
                 self.__temp_file()
             else:

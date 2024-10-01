@@ -20,7 +20,7 @@ def bw_unit_normalize(input):
 
 
 def process_with_from_n_to(
-    raw: dict[str, pd.DataFrame], db: pd.DataFrame
+    raw: dict[str, pd.DataFrame], lookUpTable: pd.DataFrame
 ) -> dict[str, pd.DataFrame]:
     calc: dict[str, pd.DataFrame] = {}
     for each in list(raw.keys()):
@@ -29,7 +29,7 @@ def process_with_from_n_to(
         )
         raw[each]["Hostname"] = raw[each]["Hostname"].apply(lambda x: x.lower())
         calc[each] = pd.merge(
-            left=db,
+            left=lookUpTable,
             right=raw[each],
             how="left",
             left_on=[
@@ -53,7 +53,7 @@ def process_with_from_n_to(
 
 
 def process_basic(
-    raw: dict[str, pd.DataFrame], db: pd.DataFrame
+    raw: dict[str, pd.DataFrame], lookUpTable: pd.DataFrame
 ) -> dict[str, pd.DataFrame]:
     calc: dict[str, pd.DataFrame] = {}
     for each in list(raw.keys()):
@@ -62,9 +62,9 @@ def process_basic(
         )
         raw[each]["Hostname"] = raw[each]["Hostname"].apply(lambda x: x.lower())
         raw[each]["Interface"] = raw[each]["Interface"].apply(lambda x: str(x))
-        db["Interface"] = db["Interface"].apply(lambda x: str(x))
+        lookUpTable["Interface"] = lookUpTable["Interface"].apply(lambda x: str(x))
         calc[each] = pd.merge(
-            left=db,
+            left=lookUpTable,
             right=raw[each],
             how="left",
             left_on=["Hostname", "Interface"],
@@ -84,7 +84,7 @@ def process_basic(
     return res
 
 
-def process_f5(raw: dict[str, pd.DataFrame], db: pd.DataFrame) -> pd.DataFrame:
+def process_f5(raw: dict[str, pd.DataFrame], lookUpTable: pd.DataFrame) -> pd.DataFrame:
     calc: dict[str, pd.DataFrame] = {}
     for each in ["bw-in", "bw-out"]:
         raw[each] = raw[each][["Hostname", "Interface", "Bandwidth", "Unit"]].rename(
@@ -92,9 +92,9 @@ def process_f5(raw: dict[str, pd.DataFrame], db: pd.DataFrame) -> pd.DataFrame:
         )
         raw[each]["Hostname"] = raw[each]["Hostname"].apply(lambda x: x.lower())
         raw[each]["Interface"] = raw[each]["Interface"].apply(lambda x: str(x))
-        db["Interface"] = db["Interface"].apply(lambda x: str(x))
+        lookUpTable["Interface"] = lookUpTable["Interface"].apply(lambda x: str(x))
         calc[each] = pd.merge(
-            left=db,
+            left=lookUpTable,
             right=raw[each],
             how="left",
             left_on=["Hostname", "Interface"],
