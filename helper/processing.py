@@ -32,12 +32,19 @@ def process_with_from_n_to(
             left=lookUpTable,
             right=raw[each],
             how="left",
-            left_on=[
-                f"{'From' if each == 'bw-in' else 'To'} Hostname",
-                f"{'From' if each == 'bw-in' else 'To'} Interface",
-            ],
+            left_on=["From Hostname", "From Interface"],
             right_on=["Hostname", "Interface"],
         ).drop(["Hostname", "Interface"], axis=1)
+        missing = calc[each][calc[each][f"{each} Bandwidth"].isna()]
+        if not missing.empty:
+            additional = pd.merge(
+                left=lookUpTable,
+                right=raw[each],
+                how="left",
+                left_on=["To Hostname", "To Interface"],
+                right_on=["Hostname", "Interface"],
+            ).drop(["Hostname", "Interface"], axis=1)
+            calc[each].update(additional)
         calc[each][f"{each} %"] = (
             calc[each][f"{each} Bandwidth"] / calc[each]["Bandwidth"]
         ).round(decimals=5)

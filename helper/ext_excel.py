@@ -73,7 +73,9 @@ class ExtendedExcelProcessor(FileHandler):
 
         for key in data.keys():
             df = pd.DataFrame(data=data[key])
-            df.to_excel(excel_writer=writer, sheet_name=key, index=False)
+            df.to_excel(
+                excel_writer=writer, sheet_name=key, index=False, na_rep="=NA()"
+            )
             worksheet = writer.sheets[key]
             percent_cond_fmt(worksheet, df)
             worksheet.autofit()

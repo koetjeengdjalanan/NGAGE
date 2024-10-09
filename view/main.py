@@ -250,7 +250,7 @@ class MainView(ctk.CTkFrame):
                 raw=(
                     self.rawData[_]
                     if "Extranet" not in self.rawData
-                    else conc_df(orig=self.rawData[_], ext=self.rawData["Extranet"])
+                    else conc_df(ext=self.rawData[_], orig=self.rawData["Extranet"])
                 ),
                 lookUpTable=self.controller.lookUpTable[_],
             )
@@ -262,7 +262,7 @@ class MainView(ctk.CTkFrame):
                 raw=(
                     self.rawData[_]
                     if "Extranet" not in self.rawData
-                    else conc_df(orig=self.rawData[_], ext=self.rawData["Extranet"])
+                    else conc_df(ext=self.rawData[_], orig=self.rawData["Extranet"])
                 ),
                 lookUpTable=self.controller.lookUpTable[_],
             )
