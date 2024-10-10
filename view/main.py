@@ -10,6 +10,7 @@ from helper.processing import (
     conc_df,
     process_basic,
     process_f5,
+    process_firewall,
     process_with_from_n_to,
 )
 from helper.filehandler import FileHandler
@@ -18,12 +19,15 @@ from helper.filehandler import FileHandler
 class MainView(ctk.CTkFrame):
     def __init__(self, master, controller) -> None:
         super().__init__(master=master, fg_color="transparent", corner_radius=None)
+        self.inputFrame = ctk.CTkScrollableFrame(master=self, fg_color="transparent")
+        self.inputFrame.pack(fill=ctk.BOTH, expand=True)
         self.controller = controller
         self.dir: str = Path().cwd()
-        self.inputList: list[str] = controller.fileList[:-1]
+        self.inputList: list[str] = controller.fileList[:-2]
         self.rawData: dict[str, dict[str, pd.DataFrame]] = {}
         self.__general_input_forms()
         self.__fFive_input_forms()
+        self.__firewall_input_forms()
         self.__action_button()
         if self.controller.env["DEV"]:
             self.insertOnDev()
@@ -34,12 +38,15 @@ class MainView(ctk.CTkFrame):
             self.rawData[each] = {}
             for type in self.controller.env["sourceFiles"][each]:
                 print(f"⊢→ {type}")
+                match each:
+                    case "F5":
+                        pathInput = self.f5FilePathInput[type]
+                    case "Firewall":
+                        pathInput = self.firewallInputPath[type]
+                    case _:
+                        pathInput = self.inputFilePathInput[each][type]
                 self.pick_file(
-                    entry=(
-                        self.inputFilePathInput[each][type]
-                        if each != "F5"
-                        else self.f5FilePathInput[type]
-                    ),
+                    entry=pathInput,
                     name=each,
                     type=type,
                     filePath=Path(self.controller.env["sourceFiles"][each][type]),
@@ -49,7 +56,7 @@ class MainView(ctk.CTkFrame):
     def __general_input_forms(self) -> None:
         ### General Inputs Forms
         self.inputFilePathInput: dict[str, dict[str, ctk.CTkEntry]] = {}
-        inputFormsFrame = ctk.CTkFrame(master=self)
+        inputFormsFrame = ctk.CTkFrame(master=self.inputFrame)
         inputFormsFrame.pack(fill=ctk.BOTH, expand=False, padx=10, pady=10)
         inputFormsFrame.columnconfigure(index=0, weight=1)
         inputFormsFrame.columnconfigure(index=1, weight=3)
@@ -103,7 +110,7 @@ class MainView(ctk.CTkFrame):
             "sdc-cpu": None,
             "mem": None,
         }
-        f5FormsFrame = ctk.CTkFrame(master=self)
+        f5FormsFrame = ctk.CTkFrame(master=self.inputFrame)
         f5FormsFrame.pack(fill=ctk.BOTH, expand=False, padx=10, pady=10)
         f5FormsFrame.columnconfigure(0, weight=1)
         f5FormsFrame.columnconfigure(1, weight=1)
@@ -186,6 +193,94 @@ class MainView(ctk.CTkFrame):
             ),
         )
 
+    def __firewall_input_forms(self) -> None:
+        ### Firewall Input Forms
+        self.firewallInputPath: dict[str, str | None] = {
+            "cpu": None,
+            "mem": None,
+            "con-cp": None,
+            "con-noncp": None,
+        }
+        firewallFormsFrame = ctk.CTkFrame(master=self.inputFrame)
+        firewallFormsFrame.pack(fill=ctk.BOTH, expand=False, padx=10, pady=10)
+        firewallFormsFrame.columnconfigure(0, weight=1)
+        firewallFormsFrame.columnconfigure(1, weight=1)
+        ctk.CTkLabel(
+            master=firewallFormsFrame, text="Firewall Forms Inputs", font=("", 24)
+        ).grid(column=0, row=0, sticky="nsew", padx=5, pady=10, columnspan=2)
+        ctk.CTkLabel(master=firewallFormsFrame, text="CPU").grid(
+            column=0, row=1, sticky="nsew", padx=5, pady=(5, 0)
+        )
+        self.firewallInputPath["cpu"] = ctk.CTkEntry(
+            master=firewallFormsFrame, state=ctk.DISABLED
+        )
+        self.firewallInputPath["cpu"].grid(
+            column=0, row=2, sticky="nsew", padx=5, pady=(0, 5)
+        )
+        self.firewallInputPath["cpu"].bind(
+            "<1>",
+            lambda event, x="cpu": self.pick_file(
+                entry=self.firewallInputPath[x],
+                name="Firewall",
+                type=x,
+                isResource=True,
+            ),
+        )
+        ctk.CTkLabel(master=firewallFormsFrame, text="Mem").grid(
+            column=1, row=1, sticky="nsew", padx=5, pady=(5, 0)
+        )
+        self.firewallInputPath["mem"] = ctk.CTkEntry(
+            master=firewallFormsFrame, state=ctk.DISABLED
+        )
+        self.firewallInputPath["mem"].grid(
+            column=1, row=2, sticky="nsew", padx=5, pady=(0, 5)
+        )
+        self.firewallInputPath["mem"].bind(
+            "<1>",
+            lambda event, x="mem": self.pick_file(
+                entry=self.firewallInputPath[x],
+                name="Firewall",
+                type=x,
+                isResource=True,
+            ),
+        )
+        ctk.CTkLabel(master=firewallFormsFrame, text="Connection Count CP").grid(
+            column=0, row=3, sticky="nsew", padx=5, pady=(5, 0)
+        )
+        self.firewallInputPath["con-cp"] = ctk.CTkEntry(
+            master=firewallFormsFrame, state=ctk.DISABLED
+        )
+        self.firewallInputPath["con-cp"].grid(
+            column=0, row=4, sticky="nsew", padx=5, pady=(0, 5)
+        )
+        self.firewallInputPath["con-cp"].bind(
+            "<1>",
+            lambda event, x="con-cp": self.pick_file(
+                entry=self.firewallInputPath[x],
+                name="Firewall",
+                type=x,
+                isResource=True,
+            ),
+        )
+        ctk.CTkLabel(master=firewallFormsFrame, text="Connection Count Non-CP").grid(
+            column=1, row=3, sticky="nsew", padx=5, pady=(5, 0)
+        )
+        self.firewallInputPath["con-noncp"] = ctk.CTkEntry(
+            master=firewallFormsFrame, state=ctk.DISABLED
+        )
+        self.firewallInputPath["con-noncp"].grid(
+            column=1, row=4, sticky="nsew", padx=5, pady=(0, 5)
+        )
+        self.firewallInputPath["con-noncp"].bind(
+            "<1>",
+            lambda event, x="con-noncp": self.pick_file(
+                entry=self.firewallInputPath[x],
+                name="Firewall",
+                type=x,
+                isResource=True,
+            ),
+        )
+
     def __action_button(self) -> None:
         ### Action Button
         actionButtonFrame = ctk.CTkFrame(master=self, fg_color="transparent")
@@ -230,9 +325,13 @@ class MainView(ctk.CTkFrame):
                             )[0],
                         ).apply(bw_unit_normalize, axis=1)
                     else:
-                        self.rawData[name][type] = sourceData.rename(
-                            {"Metric": "Hostname"}
-                        ).drop(["Month"], axis=1)
+                        self.rawData[name][type] = (
+                            sourceData.rename({"Metric": "Hostname"}).drop(
+                                ["Month"], axis=1
+                            )
+                            if "Metric" in sourceData.columns
+                            else sourceData.drop(["Time"], axis=1)
+                        )
                     break
                 except KeyError:
                     self.rawData[name] = {}
@@ -266,8 +365,17 @@ class MainView(ctk.CTkFrame):
                 ),
                 lookUpTable=self.controller.lookUpTable[_],
             )
+        if self.controller.fileList[-2] in self.rawData.keys():
+            res[self.controller.fileList[-2]] = process_f5(
+                raw=self.rawData[self.controller.fileList[-2]],
+                lookUpTable=self.controller.lookUpTable[self.controller.fileList[-2]],
+            )
+        else:
+            infoError.append(
+                f"{self.controller.fileList[-2]} \t Not Fount in Input, Skipping!\n"
+            )
         if self.controller.fileList[-1] in self.rawData.keys():
-            res[self.controller.fileList[-1]] = process_f5(
+            res[self.controller.fileList[-1]] = process_firewall(
                 raw=self.rawData[self.controller.fileList[-1]],
                 lookUpTable=self.controller.lookUpTable[self.controller.fileList[-1]],
             )

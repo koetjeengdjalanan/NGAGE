@@ -24,6 +24,7 @@ class App(ctk.CTk):
             "IDC",
             "PCLD",
             "F5",
+            "Firewall",
         ]
         self.iconbitmap(GetFile.getAssets(file_name="favicon.ico"))
         self.title("DBS | Grafana Reporting Automation")
@@ -44,25 +45,37 @@ class App(ctk.CTk):
             for id, file in enumerate(self.fileList):
                 res[file] = pd.read_excel(
                     io=os.path.join(self.tmpDir, "LookupTable"), sheet_name=file
-                ).apply(bw_unit_normalize, axis=1)
+                )
+                res[file] = (
+                    res[file].apply(bw_unit_normalize, axis=1)
+                    if file != self.fileList[-1]
+                    else res[file]
+                )
             return res
-        except Exception:
+        # FIXME: Handle this exception properly by match the error message and appropriate action
+        except Exception as err:
+            print(err, traceback.format_exc(), sep="\n")
+            print(Path(self.tmpDir).is_dir())
             lTFile = fd.askopenfilename(
-                title="Lookup Table File Not Found, Please Choose Lookup Table!",
+                title=(
+                    "Lookup Table File Not Found, Please Choose Lookup Table!"
+                    if not Path(os.path.join(self.tmpDir, "LookupTable")).is_file()
+                    else f"{str(err)} | Choose Another Lookup Table!"
+                ),
                 initialdir="~",
                 filetypes=(
                     ("Excel Files", "*.xls *.xlsx *.xlsm *.xlsb"),
                     ("All Files", "*.*"),
                 ),
             )
-            if lTFile != "":
-                os.makedirs(name=self.tmpDir, exist_ok=True)
-                shutil.copy2(
-                    src=Path(lTFile), dst=Path(os.path.join(self.tmpDir, "LookupTable"))
-                )
-                self.__temp_file()
-            else:
+            if lTFile == "":
                 self.destroy()
+                return
+            os.makedirs(name=self.tmpDir, exist_ok=True)
+            shutil.copy2(
+                src=Path(lTFile), dst=Path(os.path.join(self.tmpDir, "LookupTable"))
+            )
+            self.__temp_file()
 
 
 def environment() -> dict:

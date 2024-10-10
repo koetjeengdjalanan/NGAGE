@@ -139,6 +139,21 @@ def process_f5(raw: dict[str, pd.DataFrame], lookUpTable: pd.DataFrame) -> pd.Da
     return res
 
 
+def process_firewall(
+    raw: dict[str, pd.DataFrame], lookUpTable: pd.DataFrame
+) -> pd.DataFrame:
+    raw["con"] = pd.concat([raw["con-cp"], raw["con-noncp"]]).reset_index()
+    del raw["con-cp"], raw["con-noncp"]
+    for each in raw.keys():
+        lookUpTable = pd.merge(lookUpTable, raw[each], how="left", on="Hostname")
+    for col in ["CPU 95%", "Memory 95%", "Connection Count 95%"]:
+        lookUpTable[col] = lookUpTable[col].apply(
+            lambda x: (float(str(x).split("%")[0].replace(",", ".")) / 100)
+        )
+    lookUpTable.drop("index", axis=1, inplace=True)
+    return lookUpTable
+
+
 def conc_df(
     orig: dict[str, pd.DataFrame], ext: dict[str, pd.DataFrame]
 ) -> dict[str, pd.DataFrame]:
