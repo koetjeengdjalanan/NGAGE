@@ -14,7 +14,7 @@ from view.main import MainView
 
 
 class App(ctk.CTk):
-    def __init__(self, start_size: tuple[int], env: dict = None):
+    def __init__(self, start_size: tuple[int], env: dict = {"DEV": False}):
         super().__init__()
         self.fileList: list[str] = [
             "Branch",
@@ -31,7 +31,7 @@ class App(ctk.CTk):
             f"{start_size[0]}x{start_size[1]}+{(self.winfo_screenwidth() - start_size[0]) // 4}+{(self.winfo_screenheight() - start_size[1]) // 4}"
         )
         self.resizable(False, False)
-        self.env = env if not None else None
+        self.env = env
         self.tmpDir = os.path.join(
             tempfile.gettempdir(), "86c9817f304beed29e7faf6019dd3864"
         )
@@ -65,12 +65,14 @@ class App(ctk.CTk):
                 self.destroy()
 
 
-def environment() -> dict | None:
+def environment() -> dict:
     envPath = Path("./.env.toml").absolute()
     if envPath.is_file():
         with open(envPath, "r") as file:
             return toml.load(file)
-    return None
+    return {
+        "DEV": False,
+    }
 
 
 def handle_error(exception, value, tb):
