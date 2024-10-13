@@ -68,6 +68,7 @@ class App(ctk.CTk):
                     ("All Files", "*.*"),
                 ),
             )
+            # BUG: If user cancel the file dialog, the app will not close properly and if the file has been chose, the return value will be empty string
             if lTFile == "":
                 self.destroy()
                 return
@@ -78,6 +79,7 @@ class App(ctk.CTk):
             self.__temp_file()
 
 
+# IDEA: Add a function to writ a default env file if not exist to tempdir and use it as default value and make it editable!
 def environment() -> dict:
     envPath = Path("./.env.toml").absolute()
     if envPath.is_file():

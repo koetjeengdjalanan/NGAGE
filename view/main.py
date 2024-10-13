@@ -53,6 +53,7 @@ class MainView(ctk.CTkFrame):
                     isResource=False if "bw-" in type else True,
                 )
 
+    # TODO: Refactor this method to be more readable & reuseable
     def __general_input_forms(self) -> None:
         ### General Inputs Forms
         self.inputFilePathInput: dict[str, dict[str, ctk.CTkEntry]] = {}
@@ -101,6 +102,7 @@ class MainView(ctk.CTkFrame):
                 ),
             )
 
+    # TODO: Refactor this method to be more readable & reuseable
     def __fFive_input_forms(self) -> None:
         ### F5 Input Forms
         self.f5FilePathInput: dict[str, str | None] = {
@@ -193,6 +195,7 @@ class MainView(ctk.CTkFrame):
             ),
         )
 
+    # TODO: Refactor this method to be more readable & reuseable
     def __firewall_input_forms(self) -> None:
         ### Firewall Input Forms
         self.firewallInputPath: dict[str, str | None] = {
@@ -281,6 +284,7 @@ class MainView(ctk.CTkFrame):
             ),
         )
 
+    # TODO: Add another button for options
     def __action_button(self) -> None:
         ### Action Button
         actionButtonFrame = ctk.CTkFrame(master=self, fg_color="transparent")

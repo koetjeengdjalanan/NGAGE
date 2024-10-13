@@ -182,6 +182,7 @@ class FileHandler:
         self.savedFile = Path(res).absolute() if res != "" else self.savedFile
         return self
 
+    # TODO: Add an input variable to define the title of the dialog
     def select_file(self) -> "FileHandler":
         """Select File Dialog
 
