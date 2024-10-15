@@ -1,7 +1,6 @@
 import os
 from pathlib import Path
 import shutil
-import tempfile
 import traceback
 import customtkinter as ctk
 import toml
@@ -10,6 +9,7 @@ from tkinter import filedialog as fd
 
 from helper.processing import bw_unit_normalize
 from helper.getfile import GetFile
+from helper.readconfig import AppConfig
 from view.main import MainView
 
 
@@ -33,9 +33,7 @@ class App(ctk.CTk):
         )
         self.resizable(False, False)
         self.env = env
-        self.tmpDir = os.path.join(
-            tempfile.gettempdir(), "86c9817f304beed29e7faf6019dd3864"
-        )
+        self.config = AppConfig()
         self.lookUpTable: dict[str, pd.DataFrame] = self.__temp_file()
         MainView(master=self, controller=self).pack(fill="both", expand=True)
 
@@ -44,7 +42,7 @@ class App(ctk.CTk):
         try:
             for id, file in enumerate(self.fileList):
                 res[file] = pd.read_excel(
-                    io=os.path.join(self.tmpDir, "LookupTable"), sheet_name=file
+                    io=os.path.join(self.config.tmpDir, "LookupTable"), sheet_name=file
                 )
                 res[file] = (
                     res[file].apply(bw_unit_normalize, axis=1)
@@ -55,11 +53,13 @@ class App(ctk.CTk):
         # FIXME: Handle this exception properly by match the error message and appropriate action
         except Exception as err:
             print(err, traceback.format_exc(), sep="\n")
-            print(Path(self.tmpDir).is_dir())
+            print(Path(self.config.tmpDir).is_dir())
             lTFile = fd.askopenfilename(
                 title=(
                     "Lookup Table File Not Found, Please Choose Lookup Table!"
-                    if not Path(os.path.join(self.tmpDir, "LookupTable")).is_file()
+                    if not Path(
+                        os.path.join(self.config.tmpDir, "LookupTable")
+                    ).is_file()
                     else f"{str(err)} | Choose Another Lookup Table!"
                 ),
                 initialdir="~",
@@ -72,9 +72,10 @@ class App(ctk.CTk):
             if lTFile == "":
                 self.destroy()
                 return
-            os.makedirs(name=self.tmpDir, exist_ok=True)
+            os.makedirs(name=self.config.tmpDir, exist_ok=True)
             shutil.copy2(
-                src=Path(lTFile), dst=Path(os.path.join(self.tmpDir, "LookupTable"))
+                src=Path(lTFile),
+                dst=Path(os.path.join(self.config.tmpDir, "LookupTable")),
             )
             self.__temp_file()
 

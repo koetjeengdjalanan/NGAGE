@@ -21,14 +21,20 @@ class ExtendedExcelProcessor(FileHandler):
         workbook = writer.book
 
         def percent_cond_fmt(worksheet, df) -> None:
-            redBg = workbook.add_format(
-                {"num_format": "0.000 %", "bg_color": "#ff0000"}
-            )
-            orgBg = workbook.add_format(
-                {"num_format": "0.000 %", "bg_color": "#ffc000"}
+            purGr = workbook.add_format(
+                {"num_format": "0.000 %", "bg_color": "#006400"}
             )
             greBg = workbook.add_format(
-                {"num_format": "0.000 %", "bg_color": "#00b050"}
+                {"num_format": "0.000 %", "bg_color": "#299438"}
+            )
+            lgtGr = workbook.add_format(
+                {"num_format": "0.000 %", "bg_color": "#7ECC49"}
+            )
+            orgBg = workbook.add_format(
+                {"num_format": "0.000 %", "bg_color": "#FF9933"}
+            )
+            redBg = workbook.add_format(
+                {"num_format": "0.000 %", "bg_color": "#DB4035"}
             )
             colLs = df.columns.str.contains("%").nonzero()[0].tolist()
             colLs += df.columns.str.contains("cpu").nonzero()[0].tolist()
@@ -40,9 +46,9 @@ class ExtendedExcelProcessor(FileHandler):
                     colId,
                     {
                         "type": "cell",
-                        "criteria": "<=",
-                        "value": 6 / 10,
-                        "format": greBg,
+                        "criteria": "=",
+                        "value": 0,
+                        "format": purGr,
                     },
                 )
                 worksheet.conditional_format(
@@ -53,7 +59,7 @@ class ExtendedExcelProcessor(FileHandler):
                     {
                         "type": "cell",
                         "criteria": ">",
-                        "value": 7 / 10,
+                        "value": 8 / 10,
                         "format": redBg,
                     },
                 )
@@ -65,9 +71,35 @@ class ExtendedExcelProcessor(FileHandler):
                     {
                         "type": "cell",
                         "criteria": "between",
-                        "minimum": 6 / 10,
-                        "maximum": 7 / 10,
+                        "minimum": 7 / 10,
+                        "maximum": 8 / 10,
                         "format": orgBg,
+                    },
+                )
+                worksheet.conditional_format(
+                    1,
+                    colId,
+                    len(df),
+                    colId,
+                    {
+                        "type": "cell",
+                        "criteria": "between",
+                        "minimum": 5 / 10,
+                        "maximum": 7 / 10,
+                        "format": lgtGr,
+                    },
+                )
+                worksheet.conditional_format(
+                    1,
+                    colId,
+                    len(df),
+                    colId,
+                    {
+                        "type": "cell",
+                        "criteria": "between",
+                        "minimum": 0,
+                        "maximum": 5 / 10,
+                        "format": greBg,
                     },
                 )
 
