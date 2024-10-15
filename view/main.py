@@ -14,6 +14,7 @@ from helper.processing import (
     process_with_from_n_to,
 )
 from helper.filehandler import FileHandler
+from view.configtoplevel import ConfigTopLevel
 
 
 class MainView(ctk.CTkFrame):
@@ -25,6 +26,7 @@ class MainView(ctk.CTkFrame):
         self.dir: str = Path().cwd()
         self.inputList: list[str] = controller.fileList[:-2]
         self.rawData: dict[str, dict[str, pd.DataFrame]] = {}
+        self.configTopLevel = None
         self.__general_input_forms()
         self.__fFive_input_forms()
         self.__firewall_input_forms()
@@ -287,11 +289,28 @@ class MainView(ctk.CTkFrame):
     # TODO: Add another button for options
     def __action_button(self) -> None:
         ### Action Button
+        def determineConfigWindow():
+            try:
+                if self.configTopLevel.winfo_exists():
+                    self.configTopLevel.focus()
+                else:
+                    raise AttributeError
+            except AttributeError:
+                self.configTopLevel = ConfigTopLevel(
+                    master=self, controller=self.controller
+                )
+                self.configTopLevel.grab_set()
+
         actionButtonFrame = ctk.CTkFrame(master=self, fg_color="transparent")
         actionButtonFrame.pack(fill=ctk.BOTH, expand=False, padx=10, pady=10)
         ctk.CTkButton(
             master=actionButtonFrame, text="Confirm", command=self.process_data
         ).pack(side=ctk.RIGHT, ipadx=10)
+        ctk.CTkButton(
+            master=actionButtonFrame,
+            text="Config",
+            command=determineConfigWindow,
+        ).pack(side=ctk.LEFT, ipadx=10)
 
     def pick_file(
         self,
@@ -302,7 +321,7 @@ class MainView(ctk.CTkFrame):
         filePath: str = "",
     ) -> None:
         fileHandler = (
-            FileHandler(initDir=self.dir).select_file()
+            FileHandler(initDir=self.dir).select_file(title=f"Select {name} {type}")
             if filePath == ""
             else FileHandler(initDir=self.dir, sourceFile=filePath)
         )

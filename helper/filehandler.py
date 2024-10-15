@@ -183,7 +183,7 @@ class FileHandler:
         return self
 
     # TODO: Add an input variable to define the title of the dialog
-    def select_file(self) -> "FileHandler":
+    def select_file(self, title: str = "Open Source File") -> "FileHandler":
         """Select File Dialog
 
         Returns:
@@ -195,7 +195,7 @@ class FileHandler:
             ("All Files", "*.*"),
         )
         res = fd.askopenfilename(
-            title="Open Source File", initialdir=self.initDir, filetypes=filetype
+            title=title, initialdir=self.initDir, filetypes=filetype
         )
         self.sourceFile = Path(res).absolute() if res != "" else self.sourceFile
         return self
