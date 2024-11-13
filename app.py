@@ -10,7 +10,8 @@ from tkinter import filedialog as fd
 from helper.processing import bw_unit_normalize
 from helper.getfile import GetFile
 from helper.readconfig import AppConfig
-from view.main import MainView
+from view.ops_metric import OpsMetric
+from view.tower_report import TowerReport
 
 
 class App(ctk.CTk):
@@ -35,7 +36,16 @@ class App(ctk.CTk):
         self.env = env
         self.config = AppConfig()
         self.lookUpTable: dict[str, pd.DataFrame] = self.__temp_file()
-        MainView(master=self, controller=self).pack(fill="both", expand=True)
+        tabView = ctk.CTkTabview(master=self)
+        tabView.pack(fill="both", expand=True)
+        tabView.add(name="Tower Report")
+        TowerReport(master=tabView.tab(name="Tower Report"), controller=self).pack(
+            fill="both", expand=True
+        )
+        tabView.add(name="Ops Metric")
+        OpsMetric(master=tabView.tab(name="Ops Metric"), controller=self).pack(
+            fill="both", expand=True
+        )
 
     def __temp_file(self) -> dict[str, pd.DataFrame]:
         res = {}

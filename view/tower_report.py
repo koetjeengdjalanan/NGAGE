@@ -17,7 +17,7 @@ from helper.filehandler import FileHandler
 from view.configtoplevel import ConfigTopLevel
 
 
-class MainView(ctk.CTkFrame):
+class TowerReport(ctk.CTkFrame):
     def __init__(self, master, controller) -> None:
         super().__init__(master=master, fg_color="transparent", corner_radius=None)
         self.inputFrame = ctk.CTkScrollableFrame(master=self, fg_color="transparent")

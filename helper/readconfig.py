@@ -2,6 +2,12 @@ from configparser import ConfigParser
 from os import path
 from tempfile import gettempdir
 from pathlib import Path
+from tkinter import filedialog as fd
+import traceback
+
+import pandas as pd
+
+from helper.processing import bw_unit_normalize
 
 
 class AppConfig(ConfigParser):
@@ -74,3 +80,28 @@ class AppConfig(ConfigParser):
         }
         with open(Path(path.join(self.tmpDir, "config.ini")), "w") as configfile:
             self.write(configfile)
+
+
+def LookUpTable(fileList: list[str]) -> dict[str, pd.DataFrame]:
+    res = {}
+    try:
+        for id, file in enumerate(fileList):
+            res[file] = pd.read_excel(
+                io=path.join(AppConfig().tmpDir, "LookupTable"), sheet_name=file
+            )
+            res[file] = (
+                res[file].apply(bw_unit_normalize, axis=1)
+                if file != fileList[-1]
+                else res[file]
+            )
+        return res
+    except Exception as err:
+        print(err, traceback.format_exc(), sep="\n")
+        print(Path(AppConfig().tmpDir).is_dir())
+        lTFile = fd.askopenfilename(
+            title=(
+                "Lookup Table File Not Found, Please Choose Lookup Table!"
+                if not Path(path.join(AppConfig().tmpDir, "LookupTable")).is_file()
+                else f"{str(err)} | Choose Another Lookup Table!"
+            ),
+        )

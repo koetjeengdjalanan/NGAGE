@@ -43,7 +43,7 @@ class ConfigTopLevel(ctk.CTkToplevel):
                         else self.lookUpTable[tower]
                     )
                 copy2(src=sourceFile, dst=Path(self.config.tmpDir, "LookupTable"))
-            showinfo(title="Success", message="Lookup Table Updated Successfully!")
+                showinfo(title="Success", message="Lookup Table Updated Successfully!")
             self.deiconify()
 
         lookupTableConfigFrame = ctk.CTkFrame(master=self)
