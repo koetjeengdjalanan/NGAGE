@@ -14,28 +14,58 @@ from helper.processing import (
     process_with_from_n_to,
 )
 from helper.filehandler import FileHandler
+from helper.readconfig import CopyLTFile, ReadLookupTable
 from view.configtoplevel import ConfigTopLevel
 
 
-class TowerReport(ctk.CTkFrame):
+class Capacity(ctk.CTkFrame):
+    lookupTableName = "Capacity.lt"
+
     def __init__(self, master, controller) -> None:
         super().__init__(master=master, fg_color="transparent", corner_radius=None)
-        self.inputFrame = ctk.CTkScrollableFrame(master=self, fg_color="transparent")
-        self.inputFrame.pack(fill=ctk.BOTH, expand=True)
         self.controller = controller
         self.dir: str = Path().cwd()
-        self.inputList: list[str] = controller.fileList[:-2]
         self.rawData: dict[str, dict[str, pd.DataFrame]] = {}
         self.configTopLevel = None
-        self.__general_input_forms()
-        self.__fFive_input_forms()
-        self.__firewall_input_forms()
-        self.__action_button()
-        if self.controller.env["DEV"]:
-            self.insertOnDev()
+        self.__init_view()
+
+    def __init_view(self) -> None:
+        [item.destroy() for item in self.winfo_children()]
+        try:
+            self.lookUpTable = ReadLookupTable(
+                filePath=self.controller.config.tmpDir.joinpath(self.lookupTableName)
+            )
+            self.inputFrame = ctk.CTkScrollableFrame(
+                master=self, fg_color="transparent"
+            )
+            self.inputFrame.pack(fill=ctk.BOTH, expand=True)
+            self.__general_input_forms()
+            self.__fFive_input_forms()
+            self.__firewall_input_forms()
+            self.__action_button()
+            if self.controller.env["DEV"]:
+                self.insertOnDev()
+        except FileNotFoundError:
+            self.no_lt_view(reason="FileNotFoundError")
+        except Exception as Error:
+            raise Exception(Error)
+
+    def no_lt_view(self, reason: str) -> None:
+        def get_Lt():
+            CopyLTFile(self.lookupTableName)
+            self.__init_view()
+
+        noLTFrame = ctk.CTkFrame(master=self, fg_color="transparent")
+        noLTFrame.pack(fill=ctk.BOTH, expand=True)
+        noLTLabel = ctk.CTkLabel(
+            master=noLTFrame, text=reason + "\nChoose Lookup Table!", font=("", 24)
+        )
+        noLTLabel.pack(fill=ctk.BOTH, expand=True)
+        noLTFrame.bind(sequence="<1>", command=lambda x: get_Lt())
+        noLTLabel.bind(sequence="<1>", command=lambda x: get_Lt())
 
     def insertOnDev(self):
-        for each in self.controller.env["sourceFiles"]:
+        for each in self.lookUpTable.keys():
             print(f"assign: {each}")
             self.rawData[each] = {}
             for type in self.controller.env["sourceFiles"][each]:
@@ -74,7 +104,9 @@ class TowerReport(ctk.CTkFrame):
             column=2, row=1, sticky="nsew", padx=5, pady=5
         )
         inputFormsFrame.columnconfigure(index=2, weight=3)
-        for id, input in enumerate(iterable=self.inputList, start=2):
+        for id, input in enumerate(iterable=self.lookUpTable.keys(), start=2):
+            if input in ["F5", "Firewall"]:
+                continue
             ctk.CTkLabel(master=inputFormsFrame, text=input).grid(
                 column=0, row=id, sticky=ctk.W, padx=5, pady=5
             )
@@ -107,6 +139,8 @@ class TowerReport(ctk.CTkFrame):
     # TODO: Refactor this method to be more readable & reuseable
     def __fFive_input_forms(self) -> None:
         ### F5 Input Forms
+        if self.lookUpTable.get("F5") is None:
+            return None
         self.f5FilePathInput: dict[str, str | None] = {
             "bw-in": None,
             "bw-out": None,
@@ -199,6 +233,8 @@ class TowerReport(ctk.CTkFrame):
 
     # TODO: Refactor this method to be more readable & reuseable
     def __firewall_input_forms(self) -> None:
+        if self.lookUpTable.get("Firewall") is None:
+            return None
         ### Firewall Input Forms
         self.firewallInputPath: dict[str, str | None] = {
             "cpu": None,
@@ -364,7 +400,9 @@ class TowerReport(ctk.CTkFrame):
     def process_data(self) -> None:
         infoError: list[str] = []
         res = {}
-        for _ in self.controller.fileList[:2]:
+        for _ in ["Branch", "Building"]:
+            if _ not in self.lookUpTable.keys():
+                continue
             if _ not in self.rawData:
                 infoError.append(f"{_} \t Not Fount in Input, Skipping!\n")
                 continue
@@ -374,9 +412,11 @@ class TowerReport(ctk.CTkFrame):
                     if "Extranet" not in self.rawData
                     else conc_df(ext=self.rawData[_], orig=self.rawData["Extranet"])
                 ),
-                lookUpTable=self.controller.lookUpTable[_],
+                lookUpTable=self.lookUpTable[_],
             )
-        for _ in self.controller.fileList[2:-1]:
+        for _ in ["Enterprise", "Extranet", "IDC", "PCLD"]:
+            if _ not in self.lookUpTable.keys():
+                continue
             if _ not in self.rawData:
                 infoError.append(f"{_} \t Not Fount in Input, Skipping!\n")
                 continue
@@ -386,26 +426,22 @@ class TowerReport(ctk.CTkFrame):
                     if "Extranet" not in self.rawData
                     else conc_df(ext=self.rawData[_], orig=self.rawData["Extranet"])
                 ),
-                lookUpTable=self.controller.lookUpTable[_],
+                lookUpTable=self.lookUpTable[_],
             )
-        if self.controller.fileList[-2] in self.rawData.keys():
-            res[self.controller.fileList[-2]] = process_f5(
-                raw=self.rawData[self.controller.fileList[-2]],
-                lookUpTable=self.controller.lookUpTable[self.controller.fileList[-2]],
+        if "F5" in self.rawData.keys() and "F5" in self.lookUpTable.keys():
+            res["F5"] = process_f5(
+                raw=self.rawData["F5"],
+                lookUpTable=self.lookUpTable["F5"],
             )
-        else:
-            infoError.append(
-                f"{self.controller.fileList[-2]} \t Not Fount in Input, Skipping!\n"
+        elif "F5" in self.lookUpTable.keys():
+            infoError.append("F5 \t Not Fount in Input, Skipping!\n")
+        if "Firewall" in self.rawData.keys() and "Firewall" in self.lookUpTable.keys():
+            res["Firewall"] = process_firewall(
+                raw=self.rawData["Firewall"],
+                lookUpTable=self.lookUpTable["Firewall"],
             )
-        if self.controller.fileList[-1] in self.rawData.keys():
-            res[self.controller.fileList[-1]] = process_firewall(
-                raw=self.rawData[self.controller.fileList[-1]],
-                lookUpTable=self.controller.lookUpTable[self.controller.fileList[-1]],
-            )
-        else:
-            infoError.append(
-                f"{self.controller.fileList[-1]} \t Not Fount in Input, Skipping!\n"
-            )
+        elif "Firewall" in self.lookUpTable.keys():
+            infoError.append("Firewall \t Not Fount in Input, Skipping!\n")
         if len(infoError) > 0:
             tkinter.messagebox.showwarning(
                 title="Missing Value",

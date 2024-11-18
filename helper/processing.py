@@ -14,7 +14,9 @@ def bw_unit_normalize(input):
         "mb/s": 0,
         "gb/s": 3,
     }
-    input["Bandwidth"] = input["Bandwidth"] * math.pow(10, units[input["Unit"].lower()])
+    input["Bandwidth"] = input["Bandwidth"] * math.pow(
+        10, units[input["Unit"].strip().lower()]
+    )
     input["Unit"] = "Mbps"
     return input
 

@@ -1,10 +1,9 @@
 from configparser import ConfigParser
-from os import path
+from os import path, makedirs
+import shutil
 from tempfile import gettempdir
 from pathlib import Path
 from tkinter import filedialog as fd
-import traceback
-
 import pandas as pd
 
 from helper.processing import bw_unit_normalize
@@ -82,26 +81,22 @@ class AppConfig(ConfigParser):
             self.write(configfile)
 
 
-def LookUpTable(fileList: list[str]) -> dict[str, pd.DataFrame]:
-    res = {}
-    try:
-        for id, file in enumerate(fileList):
-            res[file] = pd.read_excel(
-                io=path.join(AppConfig().tmpDir, "LookupTable"), sheet_name=file
-            )
-            res[file] = (
-                res[file].apply(bw_unit_normalize, axis=1)
-                if file != fileList[-1]
-                else res[file]
-            )
-        return res
-    except Exception as err:
-        print(err, traceback.format_exc(), sep="\n")
-        print(Path(AppConfig().tmpDir).is_dir())
-        lTFile = fd.askopenfilename(
-            title=(
-                "Lookup Table File Not Found, Please Choose Lookup Table!"
-                if not Path(path.join(AppConfig().tmpDir, "LookupTable")).is_file()
-                else f"{str(err)} | Choose Another Lookup Table!"
-            ),
-        )
+def CopyLTFile(fileName: str) -> Path | None:
+    dest: Path = Path(path.join(AppConfig().tmpDir, fileName))
+    lTFile = fd.askopenfilename(
+        title=f"Choose {fileName.removesuffix('.lt')} Lookup Table",
+        filetypes=[("Excel Files", "*.xlsx"), ("All Files", "*.*")],
+        initialdir="~",
+    )
+    if not lTFile or lTFile is None:
+        return None
+    makedirs(name=AppConfig().tmpDir, exist_ok=True)
+    shutil.copy2(src=Path(lTFile), dst=dest)
+
+
+def ReadLookupTable(filePath: Path) -> dict[str, pd.DataFrame]:
+    lookUpTable: dict[str, pd.DataFrame] = pd.read_excel(io=filePath, sheet_name=None)
+    for each in lookUpTable:
+        if all(x in lookUpTable[each].columns for x in ["Unit", "Bandwidth"]):
+            lookUpTable[each] = lookUpTable[each].apply(bw_unit_normalize, axis=1)
+    return lookUpTable
