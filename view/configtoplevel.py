@@ -13,7 +13,8 @@ class ConfigTopLevel(ctk.CTkToplevel):
             ms=250,
             func=lambda: self.iconbitmap(GetFile.getAssets(file_name="favicon.ico")),
         )
-        self.config = controller.config
+        self.controller = controller
+        self.parent = master
         self.lookup_table_config()
         # self.cond_fmt_config()
 
@@ -22,11 +23,10 @@ class ConfigTopLevel(ctk.CTkToplevel):
             from tkinter.messagebox import showinfo
             from helper.readconfig import CopyLTFile
 
-            self.withdraw()
-            if CopyLTFile(fileName=self.controller.lookupTableName) is not None:
+            if CopyLTFile(fileName=self.parent.lookupTableName) is not None:
                 showinfo(title="Success", message="Lookup Table Updated Successfully!")
-                self.controller.__init_view()
-            self.deiconify()
+                self.parent.init_view()
+            self.destroy()
 
         lookupTableConfigFrame = ctk.CTkFrame(master=self)
         lookupTableConfigFrame.pack(fill="x", expand=True, padx=10, pady=10)
@@ -60,11 +60,14 @@ class ConfigTopLevel(ctk.CTkToplevel):
         ctk.CTkLabel(master=condFmtScrollableFrame, text="Value").grid(
             row=0, column=2, sticky="nsew", padx=5, pady=5
         )
-        for idx, key in enumerate(self.config["cond_fmt"]):
+        for idx, key in enumerate(self.controller.config["cond_fmt"]):
             print(
-                self.config["cond_fmt"].get(key), type(self.config["cond_fmt"].get(key))
+                self.controller.config["cond_fmt"].get(key),
+                type(self.controller.config["cond_fmt"].get(key)),
             )
-            val = json_loads(self.config["cond_fmt"].get(key).replace("'", '"'))
+            val = json_loads(
+                self.controller.config["cond_fmt"].get(key).replace("'", '"')
+            )
             ctk.CTkLabel(
                 master=condFmtScrollableFrame,
                 text=val["criteria"],

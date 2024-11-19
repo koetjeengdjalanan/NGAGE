@@ -27,9 +27,9 @@ class Capacity(ctk.CTkFrame):
         self.dir: str = Path().cwd()
         self.rawData: dict[str, dict[str, pd.DataFrame]] = {}
         self.configTopLevel = None
-        self.__init_view()
+        self.init_view()
 
-    def __init_view(self) -> None:
+    def init_view(self) -> None:
         [item.destroy() for item in self.winfo_children()]
         try:
             self.lookUpTable = ReadLookupTable(
@@ -53,7 +53,7 @@ class Capacity(ctk.CTkFrame):
     def no_lt_view(self, reason: str) -> None:
         def get_Lt():
             if CopyLTFile(self.lookupTableName) is not None:
-                self.__init_view()
+                self.init_view()
 
         noLTFrame = ctk.CTkFrame(master=self, fg_color="transparent")
         noLTFrame.pack(fill=ctk.BOTH, expand=True)
@@ -66,6 +66,8 @@ class Capacity(ctk.CTkFrame):
 
     def insertOnDev(self):
         for each in self.lookUpTable.keys():
+            if each not in self.controller.env["sourceFiles"]:
+                continue
             print(f"assign: {each}")
             self.rawData[each] = {}
             for type in self.controller.env["sourceFiles"][each]:

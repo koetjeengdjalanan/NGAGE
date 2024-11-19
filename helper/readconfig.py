@@ -92,6 +92,7 @@ def CopyLTFile(fileName: str) -> Path | None:
         return None
     makedirs(name=AppConfig().tmpDir, exist_ok=True)
     shutil.copy2(src=Path(lTFile), dst=dest)
+    return dest
 
 
 def ReadLookupTable(filePath: Path) -> dict[str, pd.DataFrame]:
