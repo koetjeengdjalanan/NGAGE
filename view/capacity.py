@@ -52,8 +52,8 @@ class Capacity(ctk.CTkFrame):
 
     def no_lt_view(self, reason: str) -> None:
         def get_Lt():
-            CopyLTFile(self.lookupTableName)
-            self.__init_view()
+            if CopyLTFile(self.lookupTableName) is not None:
+                self.__init_view()
 
         noLTFrame = ctk.CTkFrame(master=self, fg_color="transparent")
         noLTFrame.pack(fill=ctk.BOTH, expand=True)
@@ -327,7 +327,7 @@ class Capacity(ctk.CTkFrame):
         ### Action Button
         def determineConfigWindow():
             try:
-                if self.configTopLevel.winfo_exists():
+                if self.configTopLevel and self.configTopLevel.winfo_exists():
                     self.configTopLevel.focus()
                 else:
                     raise AttributeError

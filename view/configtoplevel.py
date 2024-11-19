@@ -1,11 +1,7 @@
-import pandas as pd
 import customtkinter as ctk
 
-from pathlib import Path
 from json import loads as json_loads
-from helper.filehandler import FileHandler
 from helper.getfile import GetFile
-from helper.processing import bw_unit_normalize
 
 
 class ConfigTopLevel(ctk.CTkToplevel):
@@ -13,37 +9,23 @@ class ConfigTopLevel(ctk.CTkToplevel):
         super().__init__(master=master)
         self.title("Config")
         self.resizable(False, False)
-        self.iconbitmap(GetFile.getAssets(file_name="favicon.ico"))
+        self.after(
+            ms=250,
+            func=lambda: self.iconbitmap(GetFile.getAssets(file_name="favicon.ico")),
+        )
         self.config = controller.config
-        self.fileList: list[str] = controller.fileList
-        print(Path(self.config.tmpDir, "LookupTable"))
-        self.lookUpTable: dict[str, pd.DataFrame] = controller.lookUpTable
         self.lookup_table_config()
         # self.cond_fmt_config()
 
     def lookup_table_config(self):
         def reset_lookup_table():
-            from shutil import copy2
             from tkinter.messagebox import showinfo
+            from helper.readconfig import CopyLTFile
 
             self.withdraw()
-            sourceFile = (
-                FileHandler(initDir=Path.cwd())
-                .select_file(title="Select Lookup Table")
-                .sourceFile
-            )
-            if sourceFile is not None:
-                for tower in self.fileList:
-                    self.lookUpTable[tower] = pd.read_excel(
-                        sourceFile, sheet_name=tower
-                    )
-                    self.lookUpTable[tower] = (
-                        self.lookUpTable[tower].apply(bw_unit_normalize, axis=1)
-                        if tower != self.fileList[-1]
-                        else self.lookUpTable[tower]
-                    )
-                copy2(src=sourceFile, dst=Path(self.config.tmpDir, "LookupTable"))
+            if CopyLTFile(fileName=self.controller.lookupTableName) is not None:
                 showinfo(title="Success", message="Lookup Table Updated Successfully!")
+                self.controller.__init_view()
             self.deiconify()
 
         lookupTableConfigFrame = ctk.CTkFrame(master=self)
