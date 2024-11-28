@@ -1,18 +1,22 @@
+from pathlib import Path
 from typing import Dict
 import pandas as pd
+from tkinter import filedialog as fd
 
 from helper.filehandler import FileHandler
 
 
-class ExtendedExcelProcessor(FileHandler):
-    def ext_export(self, data: Dict[str, pd.DataFrame]) -> "ExtendedExcelProcessor":
+class ExtendedFileProcessor(FileHandler):
+    sourceFiles: tuple[Path] = ()
+
+    def ext_export(self, data: Dict[str, pd.DataFrame]) -> "ExtendedFileProcessor":
         """Export DataFrame to Excel
 
         Raises:
             ValueError: Invalid Data Type
 
         Returns:
-            ExtendedExcelProcessor: ExtendedExcelProcessor Class Object
+            ExtendedFileProcessor: ExtendedFileProcessor Class Object
         """
         data = data if data is not None else self.sourceData
         if not isinstance(data, dict):
@@ -113,4 +117,23 @@ class ExtendedExcelProcessor(FileHandler):
             worksheet.autofit()
             worksheet.freeze_panes(1, 0)
         writer.close()
+        return self
+
+    def select_files(
+        self, title: str = "Select Multiple Files", skipRows: int = 0
+    ) -> "ExtendedFileProcessor":
+        filetype = (("CSV Files", "*.csv"),)
+        resData: pd.DataFrame = pd.DataFrame()
+        res = fd.askopenfilenames(
+            title=title, initialdir=self.initDir, filetypes=filetype
+        )
+        if not res:
+            return self
+        self.sourceFiles = tuple(Path(path).absolute() for path in res)
+        for _ in self.sourceFiles:
+            self.sourceFile = _
+            self.read_file(skipRows=skipRows)
+            resData = pd.concat([resData, self.sourceData], ignore_index=True)
+        self.sourceData = resData
+        self.sourceFile = None
         return self

@@ -4,7 +4,7 @@ import tkinter.messagebox
 import customtkinter as ctk
 import pandas as pd
 
-from helper.ext_excel import ExtendedExcelProcessor
+from helper.ext_filehandler import ExtendedFileProcessor
 from helper.processing import (
     bw_unit_normalize,
     conc_df,
@@ -450,7 +450,7 @@ class Capacity(ctk.CTkFrame):
                 message=f"{''.join(infoError)}",
             )
         extExcel = (
-            ExtendedExcelProcessor()
+            ExtendedFileProcessor()
             .save_file_loc(dirStr=self.dir)
             .ext_export(data=res)
             .open_explorer()
