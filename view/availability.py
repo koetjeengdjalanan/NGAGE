@@ -3,6 +3,7 @@ import customtkinter as ctk
 
 import pandas as pd
 from helper.ext_filehandler import ExtendedFileProcessor
+from helper.processing import count_occurrences
 from helper.readconfig import CopyLTFile, ReadLookupTable
 
 
@@ -27,6 +28,7 @@ class Availability(ctk.CTkFrame):
             )
             self.inputFrame.pack(fill=ctk.BOTH, expand=True)
             self.__input_forms()
+            self.__action_buttons()
             # if self.controller.env["DEV"]:
             #     self.insertOnDev()
         except FileNotFoundError:
@@ -88,6 +90,18 @@ class Availability(ctk.CTkFrame):
                 command=lambda x=each, ro=row: self.pick_file(name=x, row=ro),
             ).grid(column=1, row=row, sticky=ctk.NSEW, padx=5, pady=5)
 
+    def __action_buttons(self) -> None:
+        actionButtonFrame = ctk.CTkFrame(master=self, fg_color="transparent")
+        actionButtonFrame.pack(fill=ctk.X, expand=False, padx=10, pady=10)
+        ctk.CTkButton(
+            master=actionButtonFrame, text="Confirm", command=self.process_data
+        ).pack(side=ctk.RIGHT, ipadx=10)
+        ctk.CTkButton(
+            master=actionButtonFrame,
+            text="Config",
+            # command=determineConfigWindow,
+        ).pack(side=ctk.LEFT, ipadx=10)
+
     def pick_file(self, name: str, row: int) -> None:
         fileHandler = (
             ExtendedFileProcessor(initDir=self.dir).select_files(
@@ -101,6 +115,7 @@ class Availability(ctk.CTkFrame):
             return None
         self.rawData[name] = fileHandler.sourceData
         if sourceFiles.__len__() != 0:
+            self.rawData[name] = fileHandler.sourceData
             self.dir = sourceFiles[0].parent.absolute()
             button = self.inputFrame.grid_slaves(row=row, column=1)[0]
             wid = button.winfo_width()
@@ -115,3 +130,16 @@ class Availability(ctk.CTkFrame):
                     wraplength=wid,
                     anchor=ctk.E,
                 ).pack(fill=ctk.NONE, expand=False)
+
+    def process_data(self) -> None:
+        skip: list[str] = []
+        res: dict[str, pd.DataFrame] = {}
+        for each in self.lookUpTable.keys():
+            if each not in self.rawData.keys():
+                skip.append(each)
+                continue
+            res[each] = count_occurrences(
+                raw=self.rawData[each], lookupTable=self.lookUpTable[each]
+            )
+        if skip.__len__() != 0:
+            print(f"Skipped {skip}")

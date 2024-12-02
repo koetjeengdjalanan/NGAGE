@@ -163,3 +163,28 @@ def conc_df(
     for key in orig.keys():
         res[key] = pd.concat(objs=[orig[key], ext[key]], axis=0, ignore_index=True)
     return res
+
+
+def count_occurrences(raw: pd.DataFrame, lookupTable: pd.DataFrame) -> pd.DataFrame:
+    interface_patterns = "|".join(lookupTable["Interface"].unique().astype(str))
+    raw = raw[raw["log_message"].str.contains("changed state to down", case=False)]
+    raw = raw.assign(
+        Interface=raw["log_message"].str.extract(f"({interface_patterns})")
+    )
+    count_series = (
+        raw.groupby(["hostname", "Interface"]).size().reset_index(name="Count")
+    )
+    count_series.columns = [col.title() for col in count_series.columns]
+    res = (
+        pd.merge(
+            left=lookupTable,
+            right=count_series,
+            left_on=["Headend Router", "Interface"],
+            right_on=["Hostname", "Interface"],
+            how="left",
+        )
+        .drop(columns="Hostname")
+        .fillna({"Count": 0})
+        .astype({"Count": int})
+    )
+    return res

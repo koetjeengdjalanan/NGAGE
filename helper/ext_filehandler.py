@@ -122,6 +122,24 @@ class ExtendedFileProcessor(FileHandler):
     def select_files(
         self, title: str = "Select Multiple Files", skipRows: int = 0
     ) -> "ExtendedFileProcessor":
+        """
+        Opens a file dialog for selecting multiple CSV files, reads them, and concatenates their data.
+
+        This method allows the user to select multiple CSV files through a file dialog.
+        It then reads each selected file, skipping the specified number of rows,
+        and combines all the data into a single DataFrame.
+
+        Args:
+            title (str, optional): The title of the file dialog window. Defaults to "Select Multiple Files".
+            skipRows (int, optional): The number of rows to skip when reading each file. Defaults to 0.
+
+        Returns:
+            ExtendedFileProcessor: The instance of the class, allowing for method chaining.
+
+        Note:
+            If no files are selected, the method returns the current instance without changes.
+            After processing, sourceFile is set to None and sourceData contains the combined data from all selected files.
+        """
         filetype = (("CSV Files", "*.csv"),)
         resData: pd.DataFrame = pd.DataFrame()
         res = fd.askopenfilenames(
