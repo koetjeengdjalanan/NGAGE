@@ -19,7 +19,7 @@ class App(ctk.CTk):
         )
         self.resizable(False, False)
         self.env = env
-        self.config = AppConfig()
+        self.config = AppConfig(reset=self.env.get("DEV", False))
         tabView = ctk.CTkTabview(master=self)
         tabView.pack(fill="both", expand=True)
         tabView.add(name="Capacity")

@@ -1,7 +1,9 @@
 from pathlib import Path
 import customtkinter as ctk
+from tkinter.messagebox import Message
 
 import pandas as pd
+from helper.custom_widget import ListSelector
 from helper.ext_filehandler import ExtendedFileProcessor
 from helper.processing import count_occurrences
 from helper.readconfig import CopyLTFile, ReadLookupTable
@@ -15,6 +17,13 @@ class Availability(ctk.CTkFrame):
         self.controller = controller
         self.rawData: dict[str, pd.DataFrame] = {}
         self.dir: Path = Path.home()
+        self.branchList: list[str] = list(
+            self.controller.config.get(
+                "availability",
+                "bssb_list",
+                fallback="idjktpdc01extwr05,idjktpdc01extwr06,idjktpdc01extwr08,idjktsdc03extwr05,idjktsdc03extwr06,idjktsdc03extwr08",
+            ).split(",")
+        )
         self.init_view()
 
     def init_view(self):
@@ -23,11 +32,14 @@ class Availability(ctk.CTkFrame):
             self.lookUpTable = ReadLookupTable(
                 filePath=self.controller.config.tmpDir.joinpath(self.lookupTableName)
             )
-            self.inputFrame = ctk.CTkScrollableFrame(
-                master=self, fg_color="transparent"
-            )
-            self.inputFrame.pack(fill=ctk.BOTH, expand=True)
             self.__input_forms()
+            self.branchSetting = ListSelector(
+                master=self,
+                title="BSSB Settings",
+                fg_color="transparent",
+                items=self.branchList,
+            )
+            self.branchSetting.pack(fill=ctk.BOTH, expand=True, pady=10)
             self.__action_buttons()
             # if self.controller.env["DEV"]:
             #     self.insertOnDev()
@@ -74,6 +86,8 @@ class Availability(ctk.CTkFrame):
                 )
 
     def __input_forms(self):
+        self.inputFrame = ctk.CTkScrollableFrame(master=self, fg_color="transparent")
+        self.inputFrame.pack(fill=ctk.BOTH, expand=True)
         self.inputFrame.columnconfigure(index=0, weight=1)
         self.inputFrame.columnconfigure(index=1, weight=2)
         ctk.CTkLabel(
@@ -131,7 +145,31 @@ class Availability(ctk.CTkFrame):
                     anchor=ctk.E,
                 ).pack(fill=ctk.NONE, expand=False)
 
+    def check_integrity(self) -> bool:
+        confirmDataChanges: str = "unbounded"
+        added = set(self.branchSetting.get_items()) - set(self.branchList)
+        if "BSSB" in self.rawData.keys() and added:
+            confirmDataChanges = Message(
+                master=self,
+                title="Data Integrity Failed!",
+                detail="There is new item(s) appended to the branch setting list",
+                message=f"This key(s) has been added\n{added}\nDo you want to save changes?",
+                icon="warning",
+                type="yesnocancel",
+                default="no",
+            ).show()
+            if confirmDataChanges == "yes":
+                self.controller.config.set(
+                    "availability",
+                    "bssb_list",
+                    ",".join(self.branchSetting.get_items()),
+                )
+                self.controller.config.write_config()
+        return False if confirmDataChanges == "cancel" else True
+
     def process_data(self) -> None:
+        self.check_integrity()
+        print("goes through")
         skip: list[str] = []
         res: dict[str, pd.DataFrame] = {}
         for each in self.lookUpTable.keys():
@@ -142,4 +180,12 @@ class Availability(ctk.CTkFrame):
                 raw=self.rawData[each], lookupTable=self.lookUpTable[each]
             )
         if skip.__len__() != 0:
-            print(f"Skipped {skip}")
+            Message(
+                master=self,
+                title="Missing Value",
+                detail="Some data not found!",
+                icon="warning",
+                type="ok",
+                default="ok",
+                message=f"The following keys are not found in the raw data: {skip}",
+            ).show()
