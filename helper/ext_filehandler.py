@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List
 import pandas as pd
 from tkinter import filedialog as fd
 
@@ -9,7 +9,9 @@ from helper.filehandler import FileHandler
 class ExtendedFileProcessor(FileHandler):
     sourceFiles: tuple[Path] = ()
 
-    def ext_export(self, data: Dict[str, pd.DataFrame]) -> "ExtendedFileProcessor":
+    def ext_export(
+        self, data: Dict[str, pd.DataFrame], rules: List[Dict]
+    ) -> "ExtendedFileProcessor":
         """Export DataFrame to Excel
 
         Raises:
@@ -25,87 +27,24 @@ class ExtendedFileProcessor(FileHandler):
         workbook = writer.book
 
         def percent_cond_fmt(worksheet, df) -> None:
-            purGr = workbook.add_format(
-                {"num_format": "0.000 %", "bg_color": "#006400"}
-            )
-            greBg = workbook.add_format(
-                {"num_format": "0.000 %", "bg_color": "#299438"}
-            )
-            lgtGr = workbook.add_format(
-                {"num_format": "0.000 %", "bg_color": "#7ECC49"}
-            )
-            orgBg = workbook.add_format(
-                {"num_format": "0.000 %", "bg_color": "#FF9933"}
-            )
-            redBg = workbook.add_format(
-                {"num_format": "0.000 %", "bg_color": "#DB4035"}
-            )
             colLs = df.columns.str.contains("%").nonzero()[0].tolist()
             colLs += df.columns.str.contains("cpu").nonzero()[0].tolist()
             for colId in colLs:
-                worksheet.conditional_format(
-                    1,
-                    colId,
-                    len(df),
-                    colId,
-                    {
-                        "type": "cell",
-                        "criteria": "=",
-                        "value": 0,
-                        "format": purGr,
-                    },
-                )
-                worksheet.conditional_format(
-                    1,
-                    colId,
-                    len(df),
-                    colId,
-                    {
-                        "type": "cell",
-                        "criteria": ">",
-                        "value": 8 / 10,
-                        "format": redBg,
-                    },
-                )
-                worksheet.conditional_format(
-                    1,
-                    colId,
-                    len(df),
-                    colId,
-                    {
-                        "type": "cell",
-                        "criteria": "between",
-                        "minimum": 7 / 10,
-                        "maximum": 8 / 10,
-                        "format": orgBg,
-                    },
-                )
-                worksheet.conditional_format(
-                    1,
-                    colId,
-                    len(df),
-                    colId,
-                    {
-                        "type": "cell",
-                        "criteria": "between",
-                        "minimum": 5 / 10,
-                        "maximum": 7 / 10,
-                        "format": lgtGr,
-                    },
-                )
-                worksheet.conditional_format(
-                    1,
-                    colId,
-                    len(df),
-                    colId,
-                    {
-                        "type": "cell",
-                        "criteria": "between",
-                        "minimum": 0,
-                        "maximum": 5 / 10,
-                        "format": greBg,
-                    },
-                )
+                for rule in rules:
+                    if rule["criteria"] in ("between", ">=", "<=", "=", "<", ">"):
+                        conditional_criteria = {
+                            "type": rule["type"],
+                            "criteria": rule["criteria"],
+                            "format": workbook.add_format(rule["format"]),
+                        }
+                        if rule["criteria"] == "between":
+                            conditional_criteria["minimum"] = rule["minimum"]
+                            conditional_criteria["maximum"] = rule["maximum"]
+                        elif "value" in rule:
+                            conditional_criteria["value"] = rule["value"]
+                    worksheet.conditional_format(
+                        1, colId, len(df), colId, conditional_criteria
+                    )
 
         for key in data.keys():
             df = pd.DataFrame(data=data[key])

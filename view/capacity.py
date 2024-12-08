@@ -14,7 +14,7 @@ from helper.processing import (
     process_with_from_n_to,
 )
 from helper.filehandler import FileHandler
-from helper.readconfig import CopyLTFile, ReadLookupTable
+from helper.readconfig import CopyLTFile, GetConfigAsList, ReadLookupTable
 from view.configtoplevel import ConfigTopLevel
 
 
@@ -196,6 +196,7 @@ class Capacity(ctk.CTkFrame):
         self.f5FilePathInput["pdc-cpu"].grid(
             column=0, row=4, sticky="nsew", padx=5, pady=(0, 5)
         )
+
         self.f5FilePathInput["pdc-cpu"].bind(
             "<1>",
             lambda event, x="pdc-cpu": self.pick_file(
@@ -452,7 +453,12 @@ class Capacity(ctk.CTkFrame):
         extExcel = (
             ExtendedFileProcessor()
             .save_file_loc(dirStr=self.dir)
-            .ext_export(data=res)
+            .ext_export(
+                data=res,
+                rules=GetConfigAsList(config=self.controller.config, section="fmt")[
+                    "capacity"
+                ],
+            )
             .open_explorer()
         )
         print(extExcel.savedFile)
