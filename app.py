@@ -1,31 +1,17 @@
-import os
 from pathlib import Path
-import shutil
 import traceback
 import customtkinter as ctk
 import toml
-import pandas as pd
-from tkinter import filedialog as fd
 
-from helper.processing import bw_unit_normalize
 from helper.getfile import GetFile
 from helper.readconfig import AppConfig
-from view.main import MainView
+from view.availability import Availability
+from view.capacity import Capacity
 
 
 class App(ctk.CTk):
     def __init__(self, start_size: tuple[int], env: dict = {"DEV": False}):
         super().__init__()
-        self.fileList: list[str] = [
-            "Branch",
-            "Building",
-            "Enterprise",
-            "Extranet",
-            "IDC",
-            "PCLD",
-            "F5",
-            "Firewall",
-        ]
         self.iconbitmap(GetFile.getAssets(file_name="favicon.ico"))
         self.title("DBS | Grafana Reporting Automation")
         self.geometry(
@@ -33,51 +19,17 @@ class App(ctk.CTk):
         )
         self.resizable(False, False)
         self.env = env
-        self.config = AppConfig()
-        self.lookUpTable: dict[str, pd.DataFrame] = self.__temp_file()
-        MainView(master=self, controller=self).pack(fill="both", expand=True)
-
-    def __temp_file(self) -> dict[str, pd.DataFrame]:
-        res = {}
-        try:
-            for id, file in enumerate(self.fileList):
-                res[file] = pd.read_excel(
-                    io=os.path.join(self.config.tmpDir, "LookupTable"), sheet_name=file
-                )
-                res[file] = (
-                    res[file].apply(bw_unit_normalize, axis=1)
-                    if file != self.fileList[-1]
-                    else res[file]
-                )
-            return res
-        # FIXME: Handle this exception properly by match the error message and appropriate action
-        except Exception as err:
-            print(err, traceback.format_exc(), sep="\n")
-            print(Path(self.config.tmpDir).is_dir())
-            lTFile = fd.askopenfilename(
-                title=(
-                    "Lookup Table File Not Found, Please Choose Lookup Table!"
-                    if not Path(
-                        os.path.join(self.config.tmpDir, "LookupTable")
-                    ).is_file()
-                    else f"{str(err)} | Choose Another Lookup Table!"
-                ),
-                initialdir="~",
-                filetypes=(
-                    ("Excel Files", "*.xls *.xlsx *.xlsm *.xlsb"),
-                    ("All Files", "*.*"),
-                ),
-            )
-            # BUG: If user cancel the file dialog, the app will not close properly and if the file has been chose, the return value will be empty string
-            if lTFile == "":
-                self.destroy()
-                return
-            os.makedirs(name=self.config.tmpDir, exist_ok=True)
-            shutil.copy2(
-                src=Path(lTFile),
-                dst=Path(os.path.join(self.config.tmpDir, "LookupTable")),
-            )
-            self.__temp_file()
+        self.config = AppConfig(reset=self.env.get("DEV", False))
+        tabView = ctk.CTkTabview(master=self)
+        tabView.pack(fill="both", expand=True)
+        tabView.add(name="Capacity")
+        Capacity(master=tabView.tab(name="Capacity"), controller=self).pack(
+            fill="both", expand=True
+        )
+        tabView.add(name="Availability")
+        Availability(master=tabView.tab(name="Availability"), controller=self).pack(
+            fill="both", expand=True
+        )
 
 
 # IDEA: Add a function to writ a default env file if not exist to tempdir and use it as default value and make it editable!
