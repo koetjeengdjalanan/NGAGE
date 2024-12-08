@@ -175,7 +175,7 @@ class Availability(ctk.CTkFrame):
                 message="This key(s) has been\n"
                 + (f"Added {added} " if added else "")
                 + (f"Removed {removed} " if removed else "")
-                + "Do you want to save changes?",
+                + "\nDo you want to save changes?",
                 icon="warning",
                 type="yesnocancel",
                 default="no",
