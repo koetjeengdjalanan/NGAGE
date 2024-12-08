@@ -166,12 +166,16 @@ class Availability(ctk.CTkFrame):
     def check_integrity(self) -> bool:
         confirmDataChanges: str = "unbounded"
         added = set(self.branchSetting.get_items()) - set(self.branchList)
-        if "BSSB" in self.rawData.keys() and added:
+        removed = set(self.branchList) - set(self.branchSetting.get_items())
+        if "BSSB" in self.rawData.keys() and (added or removed):
             confirmDataChanges = Message(
                 master=self,
                 title="Data Integrity Failed!",
                 detail="There is new item(s) appended to the branch setting list",
-                message=f"This key(s) has been added\n{added}\nDo you want to save changes?",
+                message="This key(s) has been\n"
+                + (f"Added {added} " if added else "")
+                + (f"Removed {removed} " if removed else "")
+                + "Do you want to save changes?",
                 icon="warning",
                 type="yesnocancel",
                 default="no",
@@ -198,7 +202,7 @@ class Availability(ctk.CTkFrame):
                 res[each] = count_by_column(
                     raw=self.rawData[each],
                     lookupTable=self.lookUpTable[each],
-                    columnList=self.branchList,
+                    columnList=self.branchSetting.get_items(),
                 )
                 continue
             res[each] = count_occurrences(
