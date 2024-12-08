@@ -167,9 +167,10 @@ def conc_df(
 
 def count_occurrences(raw: pd.DataFrame, lookupTable: pd.DataFrame) -> pd.DataFrame:
     interface_patterns = "|".join(lookupTable["Interface"].unique().astype(str))
-    raw = raw[raw["log_message"].str.contains("changed state to down", case=False)]
-    raw = raw.assign(
-        Interface=raw["log_message"].str.extract(f"({interface_patterns})")
+    raw = (
+        raw[raw["log_message"].str.contains("changed state to down", case=False)]
+        .assign(Interface=raw["log_message"].str.extract(f"({interface_patterns})"))
+        .drop_duplicates(subset=["@timestamp", "hostname", "Interface"], keep="last")
     )
     count_series = (
         raw.groupby(["hostname", "Interface"]).size().reset_index(name="Count")
@@ -187,4 +188,33 @@ def count_occurrences(raw: pd.DataFrame, lookupTable: pd.DataFrame) -> pd.DataFr
         .fillna({"Count": 0})
         .astype({"Count": int})
     )
+    return res
+
+
+def count_by_column(
+    lookupTable: pd.DataFrame, columnList: list[str], raw: pd.DataFrame
+) -> pd.DataFrame:
+    res = lookupTable.copy()
+    interface_patterns = "|".join(lookupTable["Interface"].unique().astype(str))
+    raw = (
+        raw[raw["log_message"].str.contains("changed state to down", case=False)]
+        .assign(Interface=raw["log_message"].str.extract(f"({interface_patterns})"))
+        .drop_duplicates(subset=["@timestamp", "hostname", "Interface"], keep="last")
+    )
+    count_series = (
+        raw.groupby(["hostname", "Interface"]).size().reset_index(name="Count")
+    )
+    for column in columnList:
+        res = (
+            res.merge(
+                count_series[count_series["hostname"] == column],
+                left_on="Interface",
+                right_on="Interface",
+                how="left",
+            )
+            .drop(columns=["hostname"])
+            .fillna({"Count": 0})
+            .astype({"Count": int})
+            .rename(columns={"Count": column})
+        )
     return res

@@ -5,8 +5,9 @@ from tkinter.messagebox import Message
 import pandas as pd
 from helper.custom_widget import ListSelector
 from helper.ext_filehandler import ExtendedFileProcessor
-from helper.processing import count_occurrences
-from helper.readconfig import CopyLTFile, ReadLookupTable
+from helper.processing import count_by_column, count_occurrences
+from helper.readconfig import CopyLTFile, GetConfigAsList, ReadLookupTable
+from view.configtoplevel import ConfigTopLevel
 
 
 class Availability(ctk.CTkFrame):
@@ -24,6 +25,7 @@ class Availability(ctk.CTkFrame):
                 fallback="idjktpdc01extwr05,idjktpdc01extwr06,idjktpdc01extwr08,idjktsdc03extwr05,idjktsdc03extwr06,idjktsdc03extwr08",
             ).split(",")
         )
+        self.configTopLevel = None
         self.init_view()
 
     def init_view(self):
@@ -105,6 +107,22 @@ class Availability(ctk.CTkFrame):
             ).grid(column=1, row=row, sticky=ctk.NSEW, padx=5, pady=5)
 
     def __action_buttons(self) -> None:
+        def determineConfigWindow():
+            try:
+                if self.configTopLevel and self.configTopLevel.winfo_exists():
+                    self.configTopLevel.focus()
+                else:
+                    raise AttributeError
+            except AttributeError:
+                self.configTopLevel = ConfigTopLevel(
+                    master=self,
+                    controller=self.controller,
+                    configFormat=GetConfigAsList(
+                        config=self.controller.config, section="fmt"
+                    )["availability"],
+                )
+                self.configTopLevel.grab_set()
+
         actionButtonFrame = ctk.CTkFrame(master=self, fg_color="transparent")
         actionButtonFrame.pack(fill=ctk.X, expand=False, padx=10, pady=10)
         ctk.CTkButton(
@@ -113,7 +131,7 @@ class Availability(ctk.CTkFrame):
         ctk.CTkButton(
             master=actionButtonFrame,
             text="Config",
-            # command=determineConfigWindow,
+            command=determineConfigWindow,
         ).pack(side=ctk.LEFT, ipadx=10)
 
     def pick_file(self, name: str, row: int) -> None:
@@ -175,6 +193,13 @@ class Availability(ctk.CTkFrame):
         for each in self.lookUpTable.keys():
             if each not in self.rawData.keys():
                 skip.append(each)
+                continue
+            if each.lower() in "bssb":
+                res[each] = count_by_column(
+                    raw=self.rawData[each],
+                    lookupTable=self.lookUpTable[each],
+                    columnList=self.branchList,
+                )
                 continue
             res[each] = count_occurrences(
                 raw=self.rawData[each], lookupTable=self.lookUpTable[each]

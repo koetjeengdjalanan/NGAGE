@@ -1,11 +1,12 @@
 import customtkinter as ctk
 
-from json import loads as json_loads
+from pathlib import Path
+from typing import Dict, List
 from helper.getfile import GetFile
 
 
 class ConfigTopLevel(ctk.CTkToplevel):
-    def __init__(self, master, controller):
+    def __init__(self, master, controller, configFormat: List[Dict]):
         super().__init__(master=master)
         self.title("Config")
         self.resizable(False, False)
@@ -20,22 +21,20 @@ class ConfigTopLevel(ctk.CTkToplevel):
 
     def lookup_table_config(self):
         def reset_lookup_table():
-            from tkinter.messagebox import showinfo
-            from helper.readconfig import CopyLTFile
-
-            if CopyLTFile(fileName=self.parent.lookupTableName) is not None:
-                showinfo(title="Success", message="Lookup Table Updated Successfully!")
-                self.parent.init_view()
+            Path.unlink(
+                self.controller.config.tmpDir.joinpath(self.parent.lookupTableName)
+            )
+            self.parent.init_view()
             self.destroy()
 
         lookupTableConfigFrame = ctk.CTkFrame(master=self)
-        lookupTableConfigFrame.pack(fill="x", expand=True, padx=10, pady=10)
+        lookupTableConfigFrame.pack(fill=ctk.X, expand=True, padx=10, pady=10)
         ctk.CTkLabel(
             master=lookupTableConfigFrame, text="Lookup Table", font=("", 24)
         ).pack(pady=10)
         ctk.CTkButton(
             master=lookupTableConfigFrame,
-            text="Change Lookup Table",
+            text="Delete Lookup Table",
             command=reset_lookup_table,
         ).pack(pady=(0, 10))
 
@@ -50,7 +49,7 @@ class ConfigTopLevel(ctk.CTkToplevel):
         condFmtScrollableFrame = ctk.CTkScrollableFrame(
             master=condFmtConfigFrame, fg_color="transparent"
         )
-        condFmtScrollableFrame.grid(fill="both", expand=True)
+        condFmtScrollableFrame.grid(sticky=ctk.NSEW)
         ctk.CTkLabel(master=condFmtScrollableFrame, text="Criteria").grid(
             row=0, column=0, sticky="nsew", padx=5, pady=5
         )
@@ -60,24 +59,24 @@ class ConfigTopLevel(ctk.CTkToplevel):
         ctk.CTkLabel(master=condFmtScrollableFrame, text="Value").grid(
             row=0, column=2, sticky="nsew", padx=5, pady=5
         )
-        for idx, key in enumerate(self.controller.config["cond_fmt"]):
-            print(
-                self.controller.config["cond_fmt"].get(key),
-                type(self.controller.config["cond_fmt"].get(key)),
-            )
-            val = json_loads(
-                self.controller.config["cond_fmt"].get(key).replace("'", '"')
-            )
-            ctk.CTkLabel(
-                master=condFmtScrollableFrame,
-                text=val["criteria"],
-                font=("", 16),
-            ).grid(row=idx + 1, column=0, sticky="nsew", padx=5, pady=2)
-            # ctk.CTkLabel(
-            #     master=condFmtScrollableFrame,
-            #     text=val["value"],
-            #     font=("", 16),
-            # ).grid(row=idx + 1, column=1)
+        # for idx, key in enumerate(self.controller.config["cond_fmt"]):
+        #     print(
+        #         self.controller.config["cond_fmt"].get(key),
+        #         type(self.controller.config["cond_fmt"].get(key)),
+        #     )
+        #     val = json_loads(
+        #         self.controller.config["cond_fmt"].get(key).replace("'", '"')
+        #     )
+        #     ctk.CTkLabel(
+        #         master=condFmtScrollableFrame,
+        #         text=val["criteria"],
+        #         font=("", 16),
+        #     ).grid(row=idx + 1, column=0, sticky="nsew", padx=5, pady=2)
+        #     ctk.CTkLabel(
+        #         master=condFmtScrollableFrame,
+        #         text=val["value"],
+        #         font=("", 16),
+        #     ).grid(row=idx + 1, column=1)
 
 
 if __name__ == "__main__":

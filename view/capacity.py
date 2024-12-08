@@ -336,7 +336,11 @@ class Capacity(ctk.CTkFrame):
                     raise AttributeError
             except AttributeError:
                 self.configTopLevel = ConfigTopLevel(
-                    master=self, controller=self.controller
+                    master=self,
+                    controller=self.controller,
+                    configFormat=GetConfigAsList(
+                        config=self.controller.config, section="fmt"
+                    )["capacity"],
                 )
                 self.configTopLevel.grab_set()
 
