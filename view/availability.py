@@ -186,8 +186,8 @@ class Availability(ctk.CTkFrame):
         return False if confirmDataChanges == "cancel" else True
 
     def process_data(self) -> None:
-        self.check_integrity()
-        print("goes through")
+        if not self.check_integrity():
+            return None
         skip: list[str] = []
         res: dict[str, pd.DataFrame] = {}
         for each in self.lookUpTable.keys():
@@ -214,3 +214,17 @@ class Availability(ctk.CTkFrame):
                 default="ok",
                 message=f"The following keys are not found in the raw data: {skip}",
             ).show()
+        extExcel = (
+            ExtendedFileProcessor()
+            .save_file_loc(dirStr=self.dir)
+            .ext_export(
+                data=res,
+                rules=GetConfigAsList(config=self.controller.config, section="fmt")[
+                    "availability"
+                ],
+                colList=self.branchSetting.get_items() + ["Count"],
+            )
+            .open_explorer()
+        )
+        print(extExcel.savedFile)
+        self.controller.destroy()

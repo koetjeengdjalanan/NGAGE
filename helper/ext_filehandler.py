@@ -10,7 +10,7 @@ class ExtendedFileProcessor(FileHandler):
     sourceFiles: tuple[Path] = ()
 
     def ext_export(
-        self, data: Dict[str, pd.DataFrame], rules: List[Dict]
+        self, data: Dict[str, pd.DataFrame], rules: List[Dict], colList: List[str]
     ) -> "ExtendedFileProcessor":
         """Export DataFrame to Excel
 
@@ -27,8 +27,9 @@ class ExtendedFileProcessor(FileHandler):
         workbook = writer.book
 
         def percent_cond_fmt(worksheet, df) -> None:
-            colLs = df.columns.str.contains("%").nonzero()[0].tolist()
-            colLs += df.columns.str.contains("cpu").nonzero()[0].tolist()
+            colLs = df.columns.str.contains(colList[0]).nonzero()[0].tolist()
+            for key in colList[1:]:
+                colLs += df.columns.str.contains(key).nonzero()[0].tolist()
             for colId in colLs:
                 for rule in rules:
                     if rule["criteria"] in ("between", ">=", "<=", "=", "<", ">"):

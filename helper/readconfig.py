@@ -28,7 +28,7 @@ class AppConfig(ConfigParser):
     def set_default_config(self) -> None:
         self["fmt"] = {
             "Capacity": '[{"type": "cell","criteria": "=","value": 0,"format": {"num_format": "0.000 %%","bg_color": "#006400","font_color": "#FFFFFF"}},{"type": "cell","criteria": "between","minimum": 0,"maximum": 0.5,"format": {"num_format": "0.000 %%","bg_color": "#299438","font_color": "#FFFFFF"}},{"type": "cell","criteria": "between","minimum": 0.5,"maximum": 0.7,"format": {"num_format": "0.000 %%","bg_color": "#7ECC49","font_color": "#000000"}},{"type": "cell","criteria": "between","minimum": 0.7,"maximum": 0.8,"format": {"num_format": "0.000 %%","bg_color": "#FF9933","font_color": "#000000"}},{"type": "cell","criteria": ">=","value": 0.8,"format": {"num_format": "0.000 %%","bg_color": "#DB4035","font_color": "#FFFFFF"}}]',
-            "Availability": '[{"type": "cell", "criteria": ">", "value": 3, "format": {"num_format": "0.000 %%", "bg_color": "#DB4035", "font_color": "#FFFFFF"}},{"type": "cell", "criteria": "<=", "value": 5, "format": {"num_format": "0.000 %%", "bg_color": "#DB4035", "font_color": "#FFFFFF"}}]',
+            "Availability": '[{"type": "cell","criteria": "<","value": 3,"format": {"num_format": "#,##0","bg_color": "#299438","font_color": "#FFFFFF"}},{"type": "cell","criteria": "between","minimum": 3,"maximum": 5, "format": {"num_format": "#,##0","bg_color": "#FF9933","font_color": "#000000"}},{"type": "cell","criteria": ">","value": 5,"format": {"num_format": "#,##0","bg_color": "#DB4035","font_color": "#FFFFFF"}}]',
         }
         self["availability"] = {
             "bssb_list": "idjktpdc01extwr05,idjktpdc01extwr06,idjktpdc01extwr08,idjktsdc03extwr05,idjktsdc03extwr06,idjktsdc03extwr08"

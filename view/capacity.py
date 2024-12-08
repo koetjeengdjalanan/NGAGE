@@ -462,9 +462,9 @@ class Capacity(ctk.CTkFrame):
                 rules=GetConfigAsList(config=self.controller.config, section="fmt")[
                     "capacity"
                 ],
+                colList=["%", "cpu"],
             )
             .open_explorer()
         )
         print(extExcel.savedFile)
         self.controller.destroy()
-        return res
