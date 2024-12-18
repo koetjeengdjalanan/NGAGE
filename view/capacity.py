@@ -196,7 +196,6 @@ class Capacity(ctk.CTkFrame):
         self.f5FilePathInput["pdc-cpu"].grid(
             column=0, row=4, sticky="nsew", padx=5, pady=(0, 5)
         )
-
         self.f5FilePathInput["pdc-cpu"].bind(
             "<1>",
             lambda event, x="pdc-cpu": self.pick_file(
@@ -322,6 +321,36 @@ class Capacity(ctk.CTkFrame):
                 name="Firewall",
                 type=x,
                 isResource=True,
+            ),
+        )
+        ctk.CTkLabel(master=firewallFormsFrame, text="Bandwidth In").grid(
+            column=0, row=5, sticky="nsew", padx=5, pady=(5, 0)
+        )
+        self.firewallInputPath["bw-in"] = ctk.CTkEntry(
+            master=firewallFormsFrame, state=ctk.DISABLED
+        )
+        self.firewallInputPath["bw-in"].grid(
+            column=0, row=6, sticky="nsew", padx=5, pady=(0, 5)
+        )
+        self.firewallInputPath["bw-in"].bind(
+            "<1>",
+            lambda event, x="bw-in": self.pick_file(
+                entry=self.firewallInputPath[x], name="Firewall", type=x
+            ),
+        )
+        ctk.CTkLabel(master=firewallFormsFrame, text="Bandwidth Out").grid(
+            column=1, row=5, sticky="nsew", padx=5, pady=(5, 0)
+        )
+        self.firewallInputPath["bw-out"] = ctk.CTkEntry(
+            master=firewallFormsFrame, state=ctk.DISABLED
+        )
+        self.firewallInputPath["bw-out"].grid(
+            column=1, row=6, sticky="nsew", padx=5, pady=(0, 5)
+        )
+        self.firewallInputPath["bw-out"].bind(
+            "<1>",
+            lambda event, x="bw-out": self.pick_file(
+                entry=self.firewallInputPath[x], name="Firewall", type=x
             ),
         )
 
