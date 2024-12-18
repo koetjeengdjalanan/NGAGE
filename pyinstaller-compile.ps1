@@ -19,6 +19,7 @@ $timeTaken = Measure-Command {
         --add-data "$PSScriptRoot\assets;assets" `
         --hidden-import "customtkinter" `
         --paths "$PSScriptRoot\.venv\Lib\site-packages" `
+        --version-file "$PSScriptRoot\.devAsset\win-vers.txt" `
         "$PSScriptRoot\app.py"
 }
 
