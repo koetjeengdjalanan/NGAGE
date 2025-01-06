@@ -51,18 +51,25 @@ class Availability(ctk.CTkFrame):
             raise Exception(Error)
 
     def no_lt_view(self, reason: str) -> None:
-        def get_Lt():
+        def get_Lt(*args, **kwargs):
             if CopyLTFile(self.lookupTableName) is not None:
                 self.init_view()
 
-        noLTFrame = ctk.CTkFrame(master=self, fg_color="transparent")
+        noLTFrame = ctk.CTkFrame(
+            master=self,
+            fg_color="transparent",
+            cursor="hand2",
+        )
         noLTFrame.pack(fill=ctk.BOTH, expand=True)
         noLTLabel = ctk.CTkLabel(
-            master=noLTFrame, text=reason + "\nChoose Lookup Table!", font=("", 24)
+            master=noLTFrame,
+            text=reason + "\nChoose Lookup Table!",
+            font=("", 24),
+            cursor="hand2",
         )
         noLTLabel.pack(fill=ctk.BOTH, expand=True)
-        noLTFrame.bind(sequence="<1>", command=lambda x: get_Lt())
-        noLTLabel.bind(sequence="<1>", command=lambda x: get_Lt())
+        noLTFrame.bind(sequence="<1>", command=get_Lt)
+        noLTLabel.bind(sequence="<1>", command=get_Lt)
 
     def insertOnDev(self):
         for each in self.lookUpTable.keys():

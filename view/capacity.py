@@ -51,18 +51,25 @@ class Capacity(ctk.CTkFrame):
             raise Exception(Error)
 
     def no_lt_view(self, reason: str) -> None:
-        def get_Lt():
+        def get_Lt(*args, **kwargs):
             if CopyLTFile(self.lookupTableName) is not None:
                 self.init_view()
 
-        noLTFrame = ctk.CTkFrame(master=self, fg_color="transparent")
+        noLTFrame = ctk.CTkFrame(
+            master=self,
+            fg_color="transparent",
+            cursor="hand2",
+        )
         noLTFrame.pack(fill=ctk.BOTH, expand=True)
         noLTLabel = ctk.CTkLabel(
-            master=noLTFrame, text=reason + "\nChoose Lookup Table!", font=("", 24)
+            master=noLTFrame,
+            text=reason + "\nChoose Lookup Table!",
+            font=("", 24),
+            cursor="hand2",
         )
         noLTLabel.pack(fill=ctk.BOTH, expand=True)
-        noLTFrame.bind(sequence="<1>", command=lambda x: get_Lt())
-        noLTLabel.bind(sequence="<1>", command=lambda x: get_Lt())
+        noLTFrame.bind(sequence="<1>", command=get_Lt)
+        noLTLabel.bind(sequence="<1>", command=get_Lt)
 
     def insertOnDev(self):
         for each in self.lookUpTable.keys():
@@ -75,7 +82,7 @@ class Capacity(ctk.CTkFrame):
                 match each:
                     case "F5":
                         pathInput = self.f5FilePathInput[type]
-                    case "Firewall":
+                    case "Firewall_Resource":
                         pathInput = self.firewallInputPath[type]
                     case _:
                         pathInput = self.inputFilePathInput[each][type]
@@ -107,7 +114,7 @@ class Capacity(ctk.CTkFrame):
         )
         inputFormsFrame.columnconfigure(index=2, weight=3)
         for id, input in enumerate(iterable=self.lookUpTable.keys(), start=2):
-            if input in ["F5", "Firewall"]:
+            if input in ["F5", "Firewall_Resource"]:
                 continue
             ctk.CTkLabel(master=inputFormsFrame, text=input).grid(
                 column=0, row=id, sticky=ctk.W, padx=5, pady=5
@@ -235,7 +242,7 @@ class Capacity(ctk.CTkFrame):
 
     # TODO: Refactor this method to be more readable & reuseable
     def __firewall_input_forms(self) -> None:
-        if self.lookUpTable.get("Firewall") is None:
+        if self.lookUpTable.get("Firewall_Resource") is None:
             return None
         ### Firewall Input Forms
         self.firewallInputPath: dict[str, str | None] = {
@@ -264,7 +271,7 @@ class Capacity(ctk.CTkFrame):
             "<1>",
             lambda event, x="cpu": self.pick_file(
                 entry=self.firewallInputPath[x],
-                name="Firewall",
+                name="Firewall_Resource",
                 type=x,
                 isResource=True,
             ),
@@ -282,7 +289,7 @@ class Capacity(ctk.CTkFrame):
             "<1>",
             lambda event, x="mem": self.pick_file(
                 entry=self.firewallInputPath[x],
-                name="Firewall",
+                name="Firewall_Resource",
                 type=x,
                 isResource=True,
             ),
@@ -300,7 +307,7 @@ class Capacity(ctk.CTkFrame):
             "<1>",
             lambda event, x="con-cp": self.pick_file(
                 entry=self.firewallInputPath[x],
-                name="Firewall",
+                name="Firewall_Resource",
                 type=x,
                 isResource=True,
             ),
@@ -318,39 +325,9 @@ class Capacity(ctk.CTkFrame):
             "<1>",
             lambda event, x="con-noncp": self.pick_file(
                 entry=self.firewallInputPath[x],
-                name="Firewall",
+                name="Firewall_Resource",
                 type=x,
                 isResource=True,
-            ),
-        )
-        ctk.CTkLabel(master=firewallFormsFrame, text="Bandwidth In").grid(
-            column=0, row=5, sticky="nsew", padx=5, pady=(5, 0)
-        )
-        self.firewallInputPath["bw-in"] = ctk.CTkEntry(
-            master=firewallFormsFrame, state=ctk.DISABLED
-        )
-        self.firewallInputPath["bw-in"].grid(
-            column=0, row=6, sticky="nsew", padx=5, pady=(0, 5)
-        )
-        self.firewallInputPath["bw-in"].bind(
-            "<1>",
-            lambda event, x="bw-in": self.pick_file(
-                entry=self.firewallInputPath[x], name="Firewall", type=x
-            ),
-        )
-        ctk.CTkLabel(master=firewallFormsFrame, text="Bandwidth Out").grid(
-            column=1, row=5, sticky="nsew", padx=5, pady=(5, 0)
-        )
-        self.firewallInputPath["bw-out"] = ctk.CTkEntry(
-            master=firewallFormsFrame, state=ctk.DISABLED
-        )
-        self.firewallInputPath["bw-out"].grid(
-            column=1, row=6, sticky="nsew", padx=5, pady=(0, 5)
-        )
-        self.firewallInputPath["bw-out"].bind(
-            "<1>",
-            lambda event, x="bw-out": self.pick_file(
-                entry=self.firewallInputPath[x], name="Firewall", type=x
             ),
         )
 
@@ -450,7 +427,7 @@ class Capacity(ctk.CTkFrame):
                 ),
                 lookUpTable=self.lookUpTable[_],
             )
-        for _ in ["Enterprise", "Extranet", "IDC", "PCLD"]:
+        for _ in ["Enterprise", "Extranet", "IDC", "PCLD", "Firewall_BW"]:
             if _ not in self.lookUpTable.keys():
                 continue
             if _ not in self.rawData:
@@ -471,12 +448,15 @@ class Capacity(ctk.CTkFrame):
             )
         elif "F5" in self.lookUpTable.keys():
             infoError.append("F5 \t Not Fount in Input, Skipping!\n")
-        if "Firewall" in self.rawData.keys() and "Firewall" in self.lookUpTable.keys():
-            res["Firewall"] = process_firewall(
-                raw=self.rawData["Firewall"],
-                lookUpTable=self.lookUpTable["Firewall"],
+        if (
+            "Firewall_Resource" in self.rawData.keys()
+            and "Firewall_Resource" in self.lookUpTable.keys()
+        ):
+            res["Firewall_Resource"] = process_firewall(
+                raw=self.rawData["Firewall_Resource"],
+                lookUpTable=self.lookUpTable["Firewall_Resource"],
             )
-        elif "Firewall" in self.lookUpTable.keys():
+        elif "Firewall_Resource" in self.lookUpTable.keys():
             infoError.append("Firewall \t Not Fount in Input, Skipping!\n")
         if len(infoError) > 0:
             tkinter.messagebox.showwarning(

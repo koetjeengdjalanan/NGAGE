@@ -161,48 +161,16 @@ def process_f5(raw: dict[str, pd.DataFrame], lookUpTable: pd.DataFrame) -> pd.Da
 def process_firewall(
     raw: dict[str, pd.DataFrame], lookUpTable: pd.DataFrame
 ) -> pd.DataFrame:
-    calc: dict[str, pd.DataFrame] = {}
-    for each in ["bw-in", "bw-out"]:
-        raw[each] = raw[each][["Hostname", "Interface", "Bandwidth", "Unit"]].rename(
-            columns={"Bandwidth": f"{each} Bandwidth", "Unit": f"{each} unit"}
-        )
-        raw[each]["Hostname"] = raw[each]["Hostname"].apply(lambda x: x.lower())
-        raw[each]["Interface"] = raw[each]["Interface"].apply(lambda x: str(x))
-        lookUpTable["Interface"] = lookUpTable["Interface"].apply(lambda x: str(x))
-        calc[each] = pd.merge(
-            left=lookUpTable,
-            right=raw[each],
-            how="left",
-            left_on=["Hostname", "Interface"],
-            right_on=["Hostname", "Interface"],
-        )
-        calc[each][f"{each} %"] = (
-            calc[each][f"{each} Bandwidth"] / calc[each]["Bandwidth"]
-        ).round(decimals=5)
-    res = calc[list(calc.keys())[0]]
-    for key in list(calc.keys())[1:]:
-        res = pd.merge(
-            left=res,
-            right=calc[key],
-            on=res.columns.to_list()[:-3],
-            how="left",
-        )
-    ltCopy = lookUpTable.copy()
     raw["con"] = pd.concat([raw["con-cp"], raw["con-noncp"]]).reset_index()
     del raw["con-cp"], raw["con-noncp"]
     for each in raw.keys():
-        if each in ["bw-in", "bw-out"]:
-            continue
-        ltCopy = pd.merge(ltCopy, raw[each], how="left", on="Hostname")
+        lookUpTable = pd.merge(lookUpTable, raw[each], how="left", on="Hostname")
     for col in ["CPU 95%", "Memory 95%", "Connection Count 95%"]:
-        ltCopy[col] = ltCopy[col].apply(
+        lookUpTable[col] = lookUpTable[col].apply(
             lambda x: (float(str(x).split("%")[0].replace(",", ".")) / 100)
         )
-    ltCopy.drop("index", axis=1, inplace=True)
-    res = pd.merge(
-        res, ltCopy, how="left", on=list(res.columns.intersection(ltCopy.columns))
-    )
-    return res
+    lookUpTable.drop("index", axis=1, inplace=True)
+    return lookUpTable
 
 
 def conc_df(
