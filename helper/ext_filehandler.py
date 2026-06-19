@@ -1,18 +1,23 @@
+"""Extended file processor supporting conditional formatting and multifile selection."""
+
 from pathlib import Path
-from typing import Dict, List
-import pandas as pd
 from tkinter import filedialog as fd
+from typing import Dict, List
+
+import pandas as pd
 
 from helper.filehandler import FileHandler
 
 
 class ExtendedFileProcessor(FileHandler):
-    sourceFiles: tuple[Path] = ()
+    """File processor subclass handling advanced operations like conditional formatting."""
+
+    sourceFiles: tuple[Path, ...] = ()
 
     def ext_export(
         self, data: Dict[str, pd.DataFrame], rules: List[Dict], colList: List[str]
     ) -> "ExtendedFileProcessor":
-        """Export DataFrame to Excel
+        """Export DataFrame to Excel with conditional formatting.
 
         Raises:
             ValueError: Invalid Data Type
@@ -78,7 +83,8 @@ class ExtendedFileProcessor(FileHandler):
 
         Note:
             If no files are selected, the method returns the current instance without changes.
-            After processing, sourceFile is set to None and sourceData contains the combined data from all selected files.
+            After processing, sourceFile is set to None and sourceData contains the combined
+            data from all selected files.
         """
         filetype = (("CSV Files", "*.csv"),)
         resData: pd.DataFrame = pd.DataFrame()
@@ -91,7 +97,8 @@ class ExtendedFileProcessor(FileHandler):
         for _ in self.sourceFiles:
             self.sourceFile = _
             self.read_file(skipRows=skipRows)
-            resData = pd.concat([resData, self.sourceData], ignore_index=True)
+            if self.sourceData is not None:
+                resData = pd.concat([resData, self.sourceData], ignore_index=True)
         self.sourceData = resData
         self.sourceFile = None
         return self

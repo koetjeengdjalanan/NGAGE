@@ -1,8 +1,11 @@
+"""Module for displaying device availability view."""
+
 from pathlib import Path
-import customtkinter as ctk
 from tkinter.messagebox import Message
 
+import customtkinter as ctk
 import pandas as pd
+
 from helper.custom_widget import ListSelector
 from helper.ext_filehandler import ExtendedFileProcessor
 from helper.processing import count_by_column, count_occurrences
@@ -11,6 +14,8 @@ from view.configtoplevel import ConfigTopLevel
 
 
 class Availability(ctk.CTkFrame):
+    """Availability analysis UI frame."""
+
     lookupTableName = "Availability.lt"
 
     def __init__(self, master, controller):
@@ -28,7 +33,8 @@ class Availability(ctk.CTkFrame):
         self.configTopLevel = None
         self.init_view()
 
-    def init_view(self):
+    def init_view(self) -> None:
+        """Initialize the Availability view by creating lookup table and packing form widgets."""
         [item.destroy() for item in self.winfo_children()]
         try:
             self.lookUpTable = ReadLookupTable(
@@ -51,6 +57,11 @@ class Availability(ctk.CTkFrame):
             raise Exception(Error)
 
     def no_lt_view(self, reason: str) -> None:
+        """Display placeholder label and prompt when lookup table file is missing.
+
+        Args:
+            reason (str): Reason description.
+        """
         def get_Lt(*args, **kwargs):
             if CopyLTFile(self.lookupTableName) is not None:
                 self.init_view()
@@ -71,28 +82,7 @@ class Availability(ctk.CTkFrame):
         noLTFrame.bind(sequence="<1>", command=get_Lt)
         noLTLabel.bind(sequence="<1>", command=get_Lt)
 
-    def insertOnDev(self):
-        for each in self.lookUpTable.keys():
-            if each not in self.controller.env["sourceFiles"]:
-                continue
-            print(f"assign: {each}")
-            self.rawData[each] = {}
-            for type in self.controller.env["sourceFiles"][each]:
-                print(f"⊢→ {type}")
-                match each:
-                    case "F5":
-                        pathInput = self.f5FilePathInput[type]
-                    case "Firewall":
-                        pathInput = self.firewallInputPath[type]
-                    case _:
-                        pathInput = self.inputFilePathInput[each][type]
-                self.pick_file(
-                    entry=pathInput,
-                    name=each,
-                    type=type,
-                    filePath=Path(self.controller.env["sourceFiles"][each][type]),
-                    isResource=False if "bw-" in type else True,
-                )
+
 
     def __input_forms(self):
         self.inputFrame = ctk.CTkScrollableFrame(master=self, fg_color="transparent")
@@ -121,13 +111,17 @@ class Availability(ctk.CTkFrame):
                 else:
                     raise AttributeError
             except AttributeError:
+                config_list = GetConfigAsList(
+                    config=self.controller.config, section="fmt"
+                )["availability"]
+                if not isinstance(config_list, list):
+                    config_list = []
                 self.configTopLevel = ConfigTopLevel(
                     master=self,
                     controller=self.controller,
-                    configFormat=GetConfigAsList(
-                        config=self.controller.config, section="fmt"
-                    )["availability"],
+                    configFormat=config_list,
                 )
+                self.configTopLevel.wait_visibility()
                 self.configTopLevel.grab_set()
 
         actionButtonFrame = ctk.CTkFrame(master=self, fg_color="transparent")
@@ -142,19 +136,23 @@ class Availability(ctk.CTkFrame):
         ).pack(side=ctk.LEFT, ipadx=10)
 
     def pick_file(self, name: str, row: int) -> None:
-        fileHandler = (
-            ExtendedFileProcessor(initDir=self.dir).select_files(
-                title=f"Select files for {name}"
-            )
-            # if filePath == ""
-            # else ExtendedFileProcessor(initDir=self.dir, sourceFile=filePath)
+        """Select and process a file for a specific device category.
+
+        Args:
+            name (str): Device category name.
+            row (int): Form grid row number.
+        """
+        fileHandler = ExtendedFileProcessor(initDir=self.dir).select_files(
+            title=f"Select files for {name}"
         )
         sourceFiles = fileHandler.sourceFiles
         if sourceFiles is None:
             return None
-        self.rawData[name] = fileHandler.sourceData
-        if sourceFiles.__len__() != 0:
-            self.rawData[name] = fileHandler.sourceData
+        source_data = fileHandler.sourceData
+        if source_data is None:
+            return None
+        if len(sourceFiles) != 0:
+            self.rawData[name] = source_data
             self.dir = sourceFiles[0].parent.absolute()
             button = self.inputFrame.grid_slaves(row=row, column=1)[0]
             wid = button.winfo_width()
@@ -171,6 +169,11 @@ class Availability(ctk.CTkFrame):
                 ).pack(fill=ctk.NONE, expand=False)
 
     def check_integrity(self) -> bool:
+        """Check user inputs integrity against configured branch list.
+
+        Returns:
+            bool: True if configuration changes are saved or integrity is intact.
+        """
         confirmDataChanges: str = "unbounded"
         added = set(self.branchSetting.get_items()) - set(self.branchList)
         removed = set(self.branchList) - set(self.branchSetting.get_items())
@@ -197,6 +200,7 @@ class Availability(ctk.CTkFrame):
         return False if confirmDataChanges == "cancel" else True
 
     def process_data(self) -> None:
+        """Process log files and perform availability calculation."""
         if not self.check_integrity():
             return None
         skip: list[str] = []
@@ -225,17 +229,18 @@ class Availability(ctk.CTkFrame):
                 default="ok",
                 message=f"The following keys are not found in the raw data: {skip}",
             ).show()
-        extExcel = (
-            ExtendedFileProcessor()
-            .save_file_loc(dirStr=self.dir)
-            .ext_export(
-                data=res,
-                rules=GetConfigAsList(config=self.controller.config, section="fmt")[
-                    "availability"
-                ],
-                colList=self.branchSetting.get_items() + ["Count"],
-            )
-            .open_explorer()
+        extExcel = ExtendedFileProcessor()
+        extExcel.save_file_loc(dirStr=self.dir)
+        rules_list = GetConfigAsList(config=self.controller.config, section="fmt")[
+            "availability"
+        ]
+        if not isinstance(rules_list, list):
+            rules_list = []
+        extExcel.ext_export(
+            data=res,
+            rules=rules_list,
+            colList=self.branchSetting.get_items() + ["Count"],
         )
+        extExcel.open_explorer()
         print(extExcel.savedFile)
         self.controller.destroy()

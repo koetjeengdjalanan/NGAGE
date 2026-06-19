@@ -1,18 +1,23 @@
-import customtkinter as ctk
+"""Module for the configuration top-level window."""
 
 from pathlib import Path
 from typing import Dict, List
+
+import customtkinter as ctk
+
 from helper.getfile import GetFile
 
 
 class ConfigTopLevel(ctk.CTkToplevel):
+    """Top-level configuration management window."""
+
     def __init__(self, master, controller, configFormat: List[Dict]):
         super().__init__(master=master)
         self.title("Config")
         self.resizable(False, False)
         self.after(
             ms=250,
-            func=lambda: self.iconbitmap(GetFile.getAssets(file_name="favicon.ico")),
+            func=lambda: GetFile.setIcon(self),
         )
         self.controller = controller
         self.parent = master
@@ -20,6 +25,7 @@ class ConfigTopLevel(ctk.CTkToplevel):
         # self.cond_fmt_config()
 
     def lookup_table_config(self):
+        """Build widgets for lookup table deletion and configuration."""
         def reset_lookup_table():
             Path.unlink(
                 self.controller.config.tmpDir.joinpath(self.parent.lookupTableName)
@@ -40,6 +46,7 @@ class ConfigTopLevel(ctk.CTkToplevel):
 
     # TODO: Implement conditional formatting configuration
     def cond_fmt_config(self):
+        """Configure conditional formatting parameters."""
         condFmtConfigFrame = ctk.CTkFrame(master=self)
         condFmtConfigFrame.pack(fill="x", expand=True, padx=10, pady=10)
         ctk.CTkLabel(
@@ -82,5 +89,5 @@ class ConfigTopLevel(ctk.CTkToplevel):
 if __name__ == "__main__":
     root = ctk.CTk()
     root.withdraw()
-    ConfigTopLevel(root)
+    ConfigTopLevel(root, None, [])
     root.mainloop()

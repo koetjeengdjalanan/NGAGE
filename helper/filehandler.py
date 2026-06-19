@@ -1,21 +1,26 @@
+"""Module for handling file paths, dialogs, and reading/writing Excel or CSV files."""
+
 from datetime import datetime
 from pathlib import Path
-from typing import Union, Dict, Any, List
+from tkinter import filedialog as fd
+from typing import Any, Dict, List, Optional, Union
+
 import chardet
 import pandas as pd
-from tkinter import filedialog as fd
 
 
 class FileHandler:
+    """FileHandler class to manage file selection, reading, and exporting data."""
+
     def __init__(
         self,
-        sourceFile: Path = None,
-        sourceData: pd.DataFrame = None,
+        sourceFile: Optional[Path] = None,
+        sourceData: Optional[pd.DataFrame] = None,
         initDir: Path = Path().home().absolute(),
         destDir: Path = Path().cwd(),
         savedFile: Path = Path("./saved.xlsx").absolute(),
     ) -> None:
-        """Handling File Dialogs and File Operations"""
+        """Handling File Dialogs and File Operations."""
         self.sourceFile = sourceFile
         self.sourceData = sourceData
         self.initDir = initDir
@@ -121,13 +126,12 @@ class FileHandler:
             "utf-8-sig",
         ]
 
-    def select_directory(
-        self, dirStr: str | Path = Path().home().absolute()
-    ) -> "FileHandler":
-        """Select Directory / Folder Dialog
+    def select_directory(self, dirStr: str | Path = Path().home().absolute()) -> "FileHandler":
+        """Select Directory / Folder Dialog.
 
         Args:
-            dirStr (Path, optional): Defined where the directory or folder should start. Defaults to Path().home().absolute().
+            dirStr (Path, optional): Defined where the directory or folder should start.
+                Defaults to Path().home().absolute().
 
         Returns:
             FileHandler: FileHandler Class Object
@@ -137,9 +141,7 @@ class FileHandler:
             mustexist=True,
             title="Select Directory / Folder",
         )
-        self.initDir = (
-            Path(destDirectory).absolute() if destDirectory != "" else self.initDir
-        )
+        self.initDir = Path(destDirectory).absolute() if destDirectory != "" else self.initDir
         return self
 
     def save_file_loc(
@@ -149,7 +151,7 @@ class FileHandler:
         timeStamp: bool = True,
         promptDialog: bool = True,
     ) -> "FileHandler":
-        """Select File Location Dialog
+        """Select File Location Dialog.
 
         Args:
             fileName (str, optional): Defined the file output name. Defaults to "EXPORT.xlsx".
@@ -182,9 +184,11 @@ class FileHandler:
         self.savedFile = Path(res).absolute() if res != "" else self.savedFile
         return self
 
-    # TODO: Add an input variable to define the title of the dialog
     def select_file(self, title: str = "Open Source File") -> "FileHandler":
-        """Select File Dialog
+        """Select File Dialog.
+
+        Args:
+            title (str, optional): Defined the title of the dialog.
 
         Returns:
             FileHandler: FileHandler Class Object
@@ -194,29 +198,31 @@ class FileHandler:
             ("Excel Files", "*.xls *.xlsx *.xlsm *.xlsb"),
             ("All Files", "*.*"),
         )
-        res = fd.askopenfilename(
-            title=title, initialdir=self.initDir, filetypes=filetype
-        )
+        res = fd.askopenfilename(title=title, initialdir=self.initDir, filetypes=filetype)
         self.sourceFile = Path(res).absolute() if res != "" else self.sourceFile
         return self
 
-    def encoder_detect(self) -> dict | None:
-        """Detect File Encoding
+    def encoder_detect(self) -> dict[str, Any] | None:
+        """Detect File Encoding.
 
         Returns:
-            FileHandler: FileHandler Class Object
+            dict[str, Any] | None: Dictionary containing the encoding information or None if
+                the encoding is not found in the encoding list.
         """
-        with open(self.sourceFile, "rb") as file:
+        source_file = self.sourceFile
+        if source_file is None:
+            return None
+        with open(source_file, "rb") as file:
             data = file.read()
             res = chardet.detect(data)
-            file.close()
-            if res["encoding"].lower() in self.encodingList:
-                return res
+            encoding = res.get("encoding")
+            if encoding is not None and encoding.lower() in self.encodingList:
+                return dict(res)
             else:
                 return None
 
     def read_file(self, skipRows: int = 0) -> "FileHandler":
-        """Read Source File as DataFrame
+        """Read Source File as DataFrame.
 
         Args:
             skipRows (int, optional): How many line should be skipped. Defaults to 0.
@@ -229,31 +235,29 @@ class FileHandler:
         Returns:
             FileHandler: FileHandler Class Object
         """
-        if not self.sourceFile.is_file():
-            raise FileNotFoundError(f"{self.sourceFile} is not a file!")
-        match self.sourceFile.suffix:
+        source_file = self.sourceFile
+        if source_file is None or not source_file.is_file():
+            raise FileNotFoundError(f"{source_file} is not a file!")
+        match source_file.suffix:
             case ".csv":
                 if self.encoder_detect() is None:
                     raise ValueError("Invalid Encoding", self.encoder_detect())
-                self.sourceData = pd.read_csv(
-                    filepath_or_buffer=self.sourceFile, skiprows=skipRows
-                )
+                self.sourceData = pd.read_csv(filepath_or_buffer=source_file, skiprows=skipRows)
             case ".xlsx" | ".xls" | ".xlsm" | ".xlsb":
-                self.sourceData = pd.read_excel(io=self.sourceFile, skiprows=skipRows)
+                self.sourceData = pd.read_excel(io=source_file, skiprows=skipRows)
             case _:
-                raise TypeError("Invalid File Type", self.sourceFile.suffix)
+                raise TypeError("Invalid File Type", source_file.suffix)
         return self
 
     def export_excel(
         self,
-        data: Union[
-            pd.DataFrame, Dict[str, Union[List, pd.DataFrame, Dict[str, Any]]]
-        ] = None,
+        data: Optional[Union[pd.DataFrame, Dict[str, Union[List, pd.DataFrame, Dict[str, Any]]]]] = None,
     ) -> "FileHandler":
-        """Export DataFrame to Excel
+        """Export DataFrame to Excel.
 
         Args:
-            data (dict[str, pd.DataFrame  |  dict  |  list] | pd.DataFrame, optional): data to be exported. Defaults to None.
+            data (dict[str, pd.DataFrame  |  dict  |  list] | pd.DataFrame, optional):
+                data to be exported. Defaults to None.
 
         Raises:
             ValueError: Invalid Data Type
@@ -269,18 +273,14 @@ class FileHandler:
                 writer.close()
             case dict():
                 for key in data.keys():
-                    pd.DataFrame(data=data[key]).to_excel(
-                        excel_writer=writer, sheet_name=key
-                    )
+                    pd.DataFrame(data=data[key]).to_excel(excel_writer=writer, sheet_name=key)
                 writer.close()
             case _:
                 raise ValueError("Invalid Data Type", type(data))
         return self
 
-    def flatten_dict(
-        self, data: dict, parent_key: str = "", sep: str = "_", level: int = 1
-    ) -> dict:
-        """Flatten a nested dictionary
+    def flatten_dict(self, data: dict, parent_key: str = "", sep: str = "_", level: int = 1) -> dict:
+        """Flatten a nested dictionary.
 
         Args:
             data (dict): Data with nested dictionary
@@ -295,23 +295,19 @@ class FileHandler:
         for key, value in data.items():
             new_key = f"{parent_key}{sep}{key}" if parent_key != "" else key
             if isinstance(value, dict) and level > 0:
-                items.extend(
-                    self.flatten_dict(
-                        data=value, parent_key=new_key, level=level - 1
-                    ).items()
-                )
+                items.extend(self.flatten_dict(data=value, parent_key=new_key, level=level - 1).items())
             else:
                 items.append((new_key, value))
         return dict(items)
 
     def open_explorer(self) -> "FileHandler":
-        """Open File Explorer
+        """Open File Explorer.
 
         Returns:
             FileHandler: FileHandler Class Object
         """
-        from subprocess import run
         from platform import system
+        from subprocess import run
 
         match system():
             case "Windows":

@@ -1,42 +1,72 @@
-from configparser import ConfigParser
-from os import path, makedirs
+"""Module for reading and writing application configurations."""
+
 import shutil
-from tempfile import gettempdir
-from pathlib import Path
-from tkinter import filedialog as fd
+from configparser import ConfigParser
 from json import loads as jLoads
+from os import makedirs, path
+from pathlib import Path
+from tempfile import gettempdir
+from tkinter import filedialog as fd
+from typing import Any
+
 import pandas as pd
 
 from helper.processing import bw_unit_normalize
 
 
 class AppConfig(ConfigParser):
+    """Application configuration parser subclassing ConfigParser."""
+
     configEnum: list[dict] = [{"criteria": "="}]
 
     def __init__(self, reset: bool = False) -> None:
         super().__init__()
         self.tmpDir = Path(path.join(gettempdir(), "86c9817f304beed29e7faf6019dd3864"))
-        if (
-            not self.tmpDir.is_dir()
-            or not Path(path.join(self.tmpDir, "config.ini")).is_file()
-            or reset
-        ):
+        if not self.tmpDir.is_dir() or not Path(path.join(self.tmpDir, "config.ini")).is_file() or reset:
             self.tmpDir.mkdir(exist_ok=True, parents=True)
             self.set_default_config()
-        self.read_file(open(Path(path.join(self.tmpDir, "config.ini"))))
+        with open(Path(path.join(self.tmpDir, "config.ini")), "r") as f:
+            self.read_file(f)
 
     def set_default_config(self) -> None:
+        """Set the default formatting and availability configurations."""
         self["fmt"] = {
-            "Capacity": '[{"type": "cell","criteria": "=","value": 0,"format": {"num_format": "0.000 %%","bg_color": "#006400","font_color": "#FFFFFF"}},{"type": "cell","criteria": "between","minimum": 0,"maximum": 0.5,"format": {"num_format": "0.000 %%","bg_color": "#299438","font_color": "#FFFFFF"}},{"type": "cell","criteria": "between","minimum": 0.5,"maximum": 0.7,"format": {"num_format": "0.000 %%","bg_color": "#7ECC49","font_color": "#000000"}},{"type": "cell","criteria": "between","minimum": 0.7,"maximum": 0.8,"format": {"num_format": "0.000 %%","bg_color": "#FF9933","font_color": "#000000"}},{"type": "cell","criteria": ">=","value": 0.8,"format": {"num_format": "0.000 %%","bg_color": "#DB4035","font_color": "#FFFFFF"}}]',
-            "Availability": '[{"type": "cell","criteria": "<","value": 3,"format": {"num_format": "#,##0","bg_color": "#299438","font_color": "#FFFFFF"}},{"type": "cell","criteria": "between","minimum": 3,"maximum": 5, "format": {"num_format": "#,##0","bg_color": "#FF9933","font_color": "#000000"}},{"type": "cell","criteria": ">","value": 5,"format": {"num_format": "#,##0","bg_color": "#DB4035","font_color": "#FFFFFF"}}]',
+            "Capacity": (
+                '['
+                '{"type": "cell","criteria": "=","value": 0,'
+                '"format": {"num_format": "0.000 %%","bg_color": "#006400","font_color": "#FFFFFF"}},'
+                '{"type": "cell","criteria": "between","minimum": 0,"maximum": 0.5,'
+                '"format": {"num_format": "0.000 %%","bg_color": "#299438","font_color": "#FFFFFF"}},'
+                '{"type": "cell","criteria": "between","minimum": 0.5,"maximum": 0.7,'
+                '"format": {"num_format": "0.000 %%","bg_color": "#7ECC49","font_color": "#000000"}},'
+                '{"type": "cell","criteria": "between","minimum": 0.7,"maximum": 0.8,'
+                '"format": {"num_format": "0.000 %%","bg_color": "#FF9933","font_color": "#000000"}},'
+                '{"type": "cell","criteria": ">=","value": 0.8,'
+                '"format": {"num_format": "0.000 %%","bg_color": "#DB4035","font_color": "#FFFFFF"}}'
+                ']'
+            ),
+            "Availability": (
+                '['
+                '{"type": "cell","criteria": "<","value": 3,'
+                '"format": {"num_format": "#,##0","bg_color": "#299438","font_color": "#FFFFFF"}},'
+                '{"type": "cell","criteria": "between","minimum": 3,"maximum": 5,'
+                '"format": {"num_format": "#,##0","bg_color": "#FF9933","font_color": "#000000"}},'
+                '{"type": "cell","criteria": ">","value": 5,'
+                '"format": {"num_format": "#,##0","bg_color": "#DB4035","font_color": "#FFFFFF"}}'
+                ']'
+            ),
         }
         self["availability"] = {
-            "bssb_list": "idjktpdc01extwr05,idjktpdc01extwr06,idjktpdc01extwr08,idjktsdc03extwr05,idjktsdc03extwr06,idjktsdc03extwr08"
+            "bssb_list": (
+                "idjktpdc01extwr05,idjktpdc01extwr06,idjktpdc01extwr08,"
+                "idjktsdc03extwr05,idjktsdc03extwr06,idjktsdc03extwr08"
+            )
         }
         with open(Path(path.join(self.tmpDir, "config.ini")), "w") as configfile:
             self.write(configfile)
 
     def write_config(self) -> None:
+        """Write the current configuration to the config.ini file."""
         with open(Path(path.join(self.tmpDir, "config.ini")), "w") as configfile:
             self.write(configfile)
 
@@ -91,7 +121,7 @@ def ReadLookupTable(filePath: Path) -> dict[str, pd.DataFrame]:
     return lookUpTable
 
 
-def GetConfigAsList(config: AppConfig, section: str) -> dict[str, list[dict]]:
+def GetConfigAsList(config: AppConfig, section: str) -> dict[str, str | Any]:
     """
     Get a specified section as a dictionary of lists.
 
@@ -103,9 +133,6 @@ def GetConfigAsList(config: AppConfig, section: str) -> dict[str, list[dict]]:
         dict[str, list[dict]]: A dictionary where values are lists of dictionaries.
     """
     if config.has_section(section):
-        return {
-            key: jLoads(value) if value.startswith("[") else value
-            for key, value in config.items(section)
-        }
+        return {key: jLoads(value) if value.startswith("[") else value for key, value in config.items(section)}
     else:
         raise KeyError(f"Section '{section}' not found in the configuration.")

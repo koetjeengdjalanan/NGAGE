@@ -1,11 +1,26 @@
+"""Custom widgets for the application user interface."""
+
+from typing import Any, List, Tuple
+
 import customtkinter as ctk
-from typing import Any, LiteralString, Tuple, List
+
+
+class ItemState:
+    """Represents the checked state of an item in the ListSelector."""
+
+    def __init__(self, name: str, var: ctk.BooleanVar):
+        """Initialize ItemState with a name and a BooleanVar.
+
+        Args:
+            name (str): The name of the item.
+            var (ctk.BooleanVar): The Tkinter boolean variable tracking the item's checked state.
+        """
+        self.name = name
+        self.var = var
 
 
 class ListSelector(ctk.CTkFrame):
-    """
-    A custom frame for displaying a list of items with checkboxes.
-    """
+    """A custom frame for displaying a list of items with checkboxes."""
 
     def __init__(
         self,
@@ -19,7 +34,7 @@ class ListSelector(ctk.CTkFrame):
         border_color: str | Tuple[str, str] | None = None,
         background_corner_colors: Tuple[str | Tuple[str, str]] | None = None,
         overwrite_preferred_drawing_method: str | None = None,
-        title: LiteralString | None = "List Selector",
+        title: str = "List Selector",
         items: List[str] = [],
         **kwargs,
     ):
@@ -39,8 +54,8 @@ class ListSelector(ctk.CTkFrame):
         ctk.CTkLabel(master=self, text=title, font=("", 14)).pack(
             fill=ctk.X, padx=5, pady=5
         )
-        self.itemsVar: List[ctk.BooleanVar] = [
-            ctk.BooleanVar(master=self, name=item, value=True) for item in items
+        self.itemsVar: List[ItemState] = [
+            ItemState(item, ctk.BooleanVar(master=self, value=True)) for item in items
         ]
         self.searchVal = ctk.StringVar(master=self, name="searchVal")
         self.__search_bar()
@@ -52,7 +67,7 @@ class ListSelector(ctk.CTkFrame):
         for item in self.itemsVar:
             _ = ctk.CTkFrame(master=self.listbox, bg_color="transparent")
             _.pack(fill=ctk.X, pady=3)
-            ctk.CTkCheckBox(master=_, variable=item, text=item._name).pack(
+            ctk.CTkCheckBox(master=_, variable=item.var, text=item.name).pack(
                 fill=ctk.X, side=ctk.LEFT
             )
             __ = ctk.CTkLabel(
@@ -66,21 +81,27 @@ class ListSelector(ctk.CTkFrame):
                 "<Enter>", lambda e, label=__: label.configure(text_color="deeppink")
             )
             __.bind("<Leave>", lambda e, label=__: label.configure(text_color="gray"))
-            __.bind("<Button-1>", lambda x=item: self.remove_items(item))
+            __.bind("<Button-1>", lambda e, x=item: self.remove_items(x))
             __.pack(side=ctk.RIGHT, ipadx=10)
 
-    def remove_items(self, item):
+    def remove_items(self, item: ItemState) -> None:
+        """Remove an item from the checklist.
+
+        Args:
+            item (ItemState): The item to remove.
+        """
         self.itemsVar.remove(item)
         self.repopulate_checklist()
 
-    def repopulate_checklist(self, *args, **kwargs):
+    def repopulate_checklist(self, *args, **kwargs) -> None:
+        """Repopulate the checklist scroll frame based on the search query."""
         [x.destroy() for x in self.listbox.winfo_children()]
         for item in self.itemsVar:
-            if self.searchVal.get().lower() not in item._name.lower():
+            if self.searchVal.get().lower() not in item.name.lower():
                 continue
             _ = ctk.CTkFrame(master=self.listbox, bg_color="transparent")
             _.pack(fill=ctk.X, pady=3)
-            ctk.CTkCheckBox(master=_, variable=item, text=item._name).pack(
+            ctk.CTkCheckBox(master=_, variable=item.var, text=item.name).pack(
                 fill=ctk.X, side=ctk.LEFT
             )
             __ = ctk.CTkLabel(
@@ -94,21 +115,22 @@ class ListSelector(ctk.CTkFrame):
                 "<Enter>", lambda e, label=__: label.configure(text_color="deeppink")
             )
             __.bind("<Leave>", lambda e, label=__: label.configure(text_color="gray"))
-            __.bind("<Button-1>", lambda x=item: self.remove_items(item))
+            __.bind("<Button-1>", lambda e, x=item: self.remove_items(x))
             __.pack(side=ctk.RIGHT, ipadx=10)
 
     def __search_bar(self):
         def add_to_list():
             self.itemsVar.append(
-                ctk.BooleanVar(
-                    master=self, name=self.searchVal.get().strip(), value=True
+                ItemState(
+                    self.searchVal.get().strip(),
+                    ctk.BooleanVar(master=self, value=True)
                 )
             )
             self.repopulate_checklist()
             check_if_exists()
 
         def check_if_exists(*args, **kwargs):
-            if self.searchVal.get().strip() in [item._name for item in self.itemsVar]:
+            if self.searchVal.get().strip() in [item.name for item in self.itemsVar]:
                 addButton.configure(text="Existed!", state=ctk.DISABLED)
             elif self.searchVal.get().strip() == "":
                 addButton.configure(text="Add", state=ctk.DISABLED)
@@ -134,8 +156,7 @@ class ListSelector(ctk.CTkFrame):
         self.searchVal.trace_add("write", check_if_exists)
 
     def get_items(self) -> List[str]:
-        """
-        Retrieve the selected items from the ListSelector.
+        """Retrieve the selected items from the ListSelector.
 
         This method returns a list of strings representing the names of the items
         that have been selected (checked) in the ListSelector widget.
@@ -144,4 +165,4 @@ class ListSelector(ctk.CTkFrame):
             List[str]: A list containing the names of the selected items. If no items
             are selected, an empty list is returned.
         """
-        return [item._name for item in self.itemsVar if item.get()]
+        return [item.name for item in self.itemsVar if item.var.get()]

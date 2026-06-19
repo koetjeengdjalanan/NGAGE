@@ -1,10 +1,14 @@
-from pathlib import Path
+"""Module for displaying device capacity view."""
+
 import tkinter
 import tkinter.messagebox
+from pathlib import Path
+
 import customtkinter as ctk
 import pandas as pd
 
 from helper.ext_filehandler import ExtendedFileProcessor
+from helper.filehandler import FileHandler
 from helper.processing import (
     bw_unit_normalize,
     conc_df,
@@ -13,23 +17,25 @@ from helper.processing import (
     process_firewall,
     process_with_from_n_to,
 )
-from helper.filehandler import FileHandler
 from helper.readconfig import CopyLTFile, GetConfigAsList, ReadLookupTable
 from view.configtoplevel import ConfigTopLevel
 
 
 class Capacity(ctk.CTkFrame):
+    """Capacity analysis UI frame."""
+
     lookupTableName = "Capacity.lt"
 
     def __init__(self, master, controller) -> None:
         super().__init__(master=master, fg_color="transparent", corner_radius=None)
         self.controller = controller
-        self.dir: str = Path().cwd()
+        self.dir: Path = Path().cwd()
         self.rawData: dict[str, dict[str, pd.DataFrame]] = {}
         self.configTopLevel = None
         self.init_view()
 
     def init_view(self) -> None:
+        """Initialize the Capacity view by building the input forms and action buttons."""
         [item.destroy() for item in self.winfo_children()]
         try:
             self.lookUpTable = ReadLookupTable(
@@ -51,6 +57,11 @@ class Capacity(ctk.CTkFrame):
             raise Exception(Error)
 
     def no_lt_view(self, reason: str) -> None:
+        """Display placeholder view when lookup table file is missing.
+
+        Args:
+            reason (str): Reason description.
+        """
         def get_Lt(*args, **kwargs):
             if CopyLTFile(self.lookupTableName) is not None:
                 self.init_view()
@@ -72,6 +83,7 @@ class Capacity(ctk.CTkFrame):
         noLTLabel.bind(sequence="<1>", command=get_Lt)
 
     def insertOnDev(self):
+        """Pre-populate files automatically when running in dev mode."""
         for each in self.lookUpTable.keys():
             if each not in self.controller.env["sourceFiles"]:
                 continue
@@ -150,13 +162,7 @@ class Capacity(ctk.CTkFrame):
         ### F5 Input Forms
         if self.lookUpTable.get("F5") is None:
             return None
-        self.f5FilePathInput: dict[str, str | None] = {
-            "bw-in": None,
-            "bw-out": None,
-            "pdc-cpu": None,
-            "sdc-cpu": None,
-            "mem": None,
-        }
+        self.f5FilePathInput: dict[str, ctk.CTkEntry] = {}
         f5FormsFrame = ctk.CTkFrame(master=self.inputFrame)
         f5FormsFrame.pack(fill=ctk.BOTH, expand=False, padx=10, pady=10)
         f5FormsFrame.columnconfigure(0, weight=1)
@@ -245,12 +251,7 @@ class Capacity(ctk.CTkFrame):
         if self.lookUpTable.get("Firewall_Resource") is None:
             return None
         ### Firewall Input Forms
-        self.firewallInputPath: dict[str, str | None] = {
-            "cpu": None,
-            "mem": None,
-            "con-cp": None,
-            "con-noncp": None,
-        }
+        self.firewallInputPath: dict[str, ctk.CTkEntry] = {}
         firewallFormsFrame = ctk.CTkFrame(master=self.inputFrame)
         firewallFormsFrame.pack(fill=ctk.BOTH, expand=False, padx=10, pady=10)
         firewallFormsFrame.columnconfigure(0, weight=1)
@@ -341,13 +342,17 @@ class Capacity(ctk.CTkFrame):
                 else:
                     raise AttributeError
             except AttributeError:
+                config_list = GetConfigAsList(
+                    config=self.controller.config, section="fmt"
+                )["capacity"]
+                if not isinstance(config_list, list):
+                    config_list = []
                 self.configTopLevel = ConfigTopLevel(
                     master=self,
                     controller=self.controller,
-                    configFormat=GetConfigAsList(
-                        config=self.controller.config, section="fmt"
-                    )["capacity"],
+                    configFormat=config_list,
                 )
+                self.configTopLevel.wait_visibility()
                 self.configTopLevel.grab_set()
 
         actionButtonFrame = ctk.CTkFrame(master=self, fg_color="transparent")
@@ -363,54 +368,65 @@ class Capacity(ctk.CTkFrame):
 
     def pick_file(
         self,
-        entry,
+        entry: ctk.CTkEntry,
         name: str,
         type: str,
         isResource: bool = False,
-        filePath: str = "",
+        filePath: str | Path = "",
     ) -> None:
+        """Select and process capacity log files.
+
+        Args:
+            entry (ctk.CTkEntry): The text box entry widget to display the selected path.
+            name (str): Device category name.
+            type (str): File/metric type.
+            isResource (bool, optional): Whether file is a CPU/memory resource log. Defaults to False.
+            filePath (str | Path, optional): File path if selected programmatically. Defaults to "".
+        """
         fileHandler = (
             FileHandler(initDir=self.dir).select_file(title=f"Select {name} {type}")
             if filePath == ""
-            else FileHandler(initDir=self.dir, sourceFile=filePath)
+            else FileHandler(initDir=self.dir, sourceFile=Path(filePath))
         )
         sourceFile = fileHandler.sourceFile
         if sourceFile is None:
             return None
         sourceData = fileHandler.read_file(skipRows=1).sourceData
-        if sourceFile != "" or not None:
-            self.dir = Path(str(sourceFile).rsplit(sep="/", maxsplit=2)[0]).absolute()
-            entry.configure(state=ctk.NORMAL)
-            entry.delete(0, ctk.END)
-            entry.insert(0, str(sourceFile))
-            entry.xview_moveto(1)
-            entry.configure(state=ctk.DISABLED)
-            while True:
-                try:
-                    if not isResource:
-                        self.rawData[name][type] = sourceData.assign(
-                            Bandwidth=sourceData["95 Percentile"]
-                            .str.extract(r"([0-9.]+)\s*\w+/s")[0]
-                            .astype(float),
-                            Unit=sourceData["95 Percentile"].str.extract(
-                                r"[0-9.]+\s*(\w+/s)"
-                            )[0],
-                        ).apply(bw_unit_normalize, axis=1)
-                    else:
-                        self.rawData[name][type] = (
-                            sourceData.rename({"Metric": "Hostname"}).drop(
-                                ["Month"], axis=1
-                            )
-                            if "Metric" in sourceData.columns
-                            else sourceData.drop(["Time"], axis=1)
+        if sourceData is None:
+            return None
+        self.dir = Path(str(sourceFile).rsplit(sep="/", maxsplit=2)[0]).absolute()
+        entry.configure(state=ctk.NORMAL)
+        entry.delete(0, ctk.END)
+        entry.insert(0, str(sourceFile))
+        entry.xview_moveto(1)
+        entry.configure(state=ctk.DISABLED)
+        while True:
+            try:
+                if not isResource:
+                    self.rawData[name][type] = sourceData.assign(
+                        Bandwidth=sourceData["95 Percentile"]
+                        .str.extract(r"([0-9.]+)\s*\w+/s")[0]
+                        .astype(float),
+                        Unit=sourceData["95 Percentile"].str.extract(
+                            r"[0-9.]+\s*(\w+/s)"
+                        )[0],
+                    ).apply(bw_unit_normalize, axis=1)
+                else:
+                    self.rawData[name][type] = (
+                        sourceData.rename({"Metric": "Hostname"}).drop(
+                            ["Month"], axis=1
                         )
-                    break
-                except KeyError:
-                    self.rawData[name] = {}
-                except Exception as Error:
-                    print(Error)
+                        if "Metric" in sourceData.columns
+                        else sourceData.drop(["Time"], axis=1)
+                    )
+                break
+            except KeyError:
+                self.rawData[name] = {}
+            except Exception as Error:
+                print(Error)
 
     def process_data(self) -> None:
+        """Process bandwidth, CPU, and memory logs for Capacity calculation."""
         infoError: list[str] = []
         res = {}
         for _ in ["Branch", "Building"]:
@@ -463,17 +479,18 @@ class Capacity(ctk.CTkFrame):
                 title="Missing Value",
                 message=f"{''.join(infoError)}",
             )
-        extExcel = (
-            ExtendedFileProcessor()
-            .save_file_loc(dirStr=self.dir)
-            .ext_export(
-                data=res,
-                rules=GetConfigAsList(config=self.controller.config, section="fmt")[
-                    "capacity"
-                ],
-                colList=["%", "cpu"],
-            )
-            .open_explorer()
+        extExcel = ExtendedFileProcessor()
+        extExcel.save_file_loc(dirStr=self.dir)
+        rules_list = GetConfigAsList(config=self.controller.config, section="fmt")[
+            "capacity"
+        ]
+        if not isinstance(rules_list, list):
+            rules_list = []
+        extExcel.ext_export(
+            data=res,
+            rules=rules_list,
+            colList=["%", "cpu"],
         )
+        extExcel.open_explorer()
         print(extExcel.savedFile)
         self.controller.destroy()
