@@ -9,8 +9,10 @@ import pandas as pd
 from helper.custom_widget import ListSelector
 from helper.ext_filehandler import ExtendedFileProcessor
 from helper.processing import count_by_column, count_occurrences
-from helper.readconfig import CopyLTFile, GetConfigAsList, ReadLookupTable
+from helper.readconfig import GetConfigAsList
+from models import Controller
 from view.configtoplevel import ConfigTopLevel
+from view.no_lt import init_view
 
 
 class Availability(ctk.CTkFrame):
@@ -18,8 +20,9 @@ class Availability(ctk.CTkFrame):
 
     lookupTableName = "Availability.lt"
 
-    def __init__(self, master, controller):
+    def __init__(self, master: ctk.CTkFrame, controller: Controller):
         super().__init__(master=master)
+        self._name = "Availability"
         self.controller = controller
         self.rawData: dict[str, pd.DataFrame] = {}
         self.dir: Path = Path.home()
@@ -31,71 +34,35 @@ class Availability(ctk.CTkFrame):
             ).split(",")
         )
         self.configTopLevel = None
-        self.init_view()
-
-    def init_view(self) -> None:
-        """Initialize the Availability view by creating lookup table and packing form widgets."""
-        [item.destroy() for item in self.winfo_children()]
-        try:
-            self.lookUpTable = ReadLookupTable(
-                filePath=self.controller.config.tmpDir.joinpath(self.lookupTableName)
-            )
-            self.__input_forms()
-            self.branchSetting = ListSelector(
-                master=self,
-                title="BSSB Settings",
-                fg_color="transparent",
-                items=self.branchList,
-            )
-            self.branchSetting.pack(fill=ctk.BOTH, expand=True, pady=10)
-            self.__action_buttons()
-            # if self.controller.env["DEV"]:
-            #     self.insertOnDev()
-        except FileNotFoundError:
-            self.no_lt_view(reason="FileNotFoundError")
-        except Exception as Error:
-            raise Exception(Error)
-
-    def no_lt_view(self, reason: str) -> None:
-        """Display placeholder label and prompt when lookup table file is missing.
-
-        Args:
-            reason (str): Reason description.
-        """
-        def get_Lt(*args, **kwargs):
-            if CopyLTFile(self.lookupTableName) is not None:
-                self.init_view()
-
-        noLTFrame = ctk.CTkFrame(
+        self.views_func = [self.__setup_branch_settings, self.__input_forms, self.__action_buttons]
+        self.inputFrame: ctk.CTkScrollableFrame
+        self.lookUpTable: dict[str, pd.DataFrame]
+        init_view(
             master=self,
+            lookup_table_path=self.controller.config.tmpDir.joinpath(self.lookupTableName),
+            views_func=self.views_func,
+        )
+
+    def __setup_branch_settings(self) -> None:
+        """Setup branch settings list selector."""
+        self.branchSetting = ListSelector(
+            master=self,
+            title="BSSB Settings",
             fg_color="transparent",
-            cursor="hand2",
+            items=self.branchList,
         )
-        noLTFrame.pack(fill=ctk.BOTH, expand=True)
-        noLTLabel = ctk.CTkLabel(
-            master=noLTFrame,
-            text=reason + "\nChoose Lookup Table!",
-            font=("", 24),
-            cursor="hand2",
-        )
-        noLTLabel.pack(fill=ctk.BOTH, expand=True)
-        noLTFrame.bind(sequence="<1>", command=get_Lt)
-        noLTLabel.bind(sequence="<1>", command=get_Lt)
-
-
+        self.branchSetting.pack(fill=ctk.BOTH, expand=True, pady=10)
 
     def __input_forms(self):
-        self.inputFrame = ctk.CTkScrollableFrame(master=self, fg_color="transparent")
-        self.inputFrame.pack(fill=ctk.BOTH, expand=True)
+        # self.inputFrame = ctk.CTkScrollableFrame(master=self, fg_color="transparent")
+        # self.inputFrame.pack(fill=ctk.BOTH, expand=True)
         self.inputFrame.columnconfigure(index=0, weight=1)
         self.inputFrame.columnconfigure(index=1, weight=2)
-        ctk.CTkLabel(
-            master=self.inputFrame, text="General Input Forms", font=("", 24)
-        ).grid(column=0, row=0, sticky="nsew", padx=5, pady=10, columnspan=2)
+        ctk.CTkLabel(master=self.inputFrame, text="General Input Forms", font=("", 24)).grid(
+            column=0, row=0, sticky="nsew", padx=5, pady=10, columnspan=2
+        )
         for row, each in enumerate(self.lookUpTable.keys(), start=1):
-            ctk.CTkLabel(master=self.inputFrame, text=each).grid(
-                column=0, row=row, sticky=ctk.W, padx=5, pady=5
-            )
+            ctk.CTkLabel(master=self.inputFrame, text=each).grid(column=0, row=row, sticky=ctk.W, padx=5, pady=5)
             ctk.CTkButton(
                 master=self.inputFrame,
                 text=f"Select {each} Files",
@@ -111,24 +78,20 @@ class Availability(ctk.CTkFrame):
                 else:
                     raise AttributeError
             except AttributeError:
-                config_list = GetConfigAsList(
-                    config=self.controller.config, section="fmt"
-                )["availability"]
+                config_list = GetConfigAsList(config=self.controller.config, section="fmt")["availability"]
                 if not isinstance(config_list, list):
                     config_list = []
                 self.configTopLevel = ConfigTopLevel(
-                    master=self,
-                    controller=self.controller,
-                    configFormat=config_list,
+                    master=self, controller=self.controller, lt_table_name=self.lookupTableName
                 )
                 self.configTopLevel.wait_visibility()
                 self.configTopLevel.grab_set()
 
         actionButtonFrame = ctk.CTkFrame(master=self, fg_color="transparent")
         actionButtonFrame.pack(fill=ctk.X, expand=False, padx=10, pady=10)
-        ctk.CTkButton(
-            master=actionButtonFrame, text="Confirm", command=self.process_data
-        ).pack(side=ctk.RIGHT, ipadx=10)
+        ctk.CTkButton(master=actionButtonFrame, text="Confirm", command=self.process_data).pack(
+            side=ctk.RIGHT, ipadx=10
+        )
         ctk.CTkButton(
             master=actionButtonFrame,
             text="Config",
@@ -142,9 +105,7 @@ class Availability(ctk.CTkFrame):
             name (str): Device category name.
             row (int): Form grid row number.
         """
-        fileHandler = ExtendedFileProcessor(initDir=self.dir).select_files(
-            title=f"Select files for {name}"
-        )
+        fileHandler = ExtendedFileProcessor(initDir=self.dir).select_files(title=f"Select files for {name}")
         sourceFiles = fileHandler.sourceFiles
         if sourceFiles is None:
             return None
@@ -216,9 +177,7 @@ class Availability(ctk.CTkFrame):
                     columnList=self.branchSetting.get_items(),
                 )
                 continue
-            res[each] = count_occurrences(
-                raw=self.rawData[each], lookupTable=self.lookUpTable[each]
-            )
+            res[each] = count_occurrences(raw=self.rawData[each], lookupTable=self.lookUpTable[each])
         if skip.__len__() != 0:
             Message(
                 master=self,
@@ -231,9 +190,7 @@ class Availability(ctk.CTkFrame):
             ).show()
         extExcel = ExtendedFileProcessor()
         extExcel.save_file_loc(dirStr=self.dir)
-        rules_list = GetConfigAsList(config=self.controller.config, section="fmt")[
-            "availability"
-        ]
+        rules_list = GetConfigAsList(config=self.controller.config, section="fmt")["availability"]
         if not isinstance(rules_list, list):
             rules_list = []
         extExcel.ext_export(
@@ -243,4 +200,4 @@ class Availability(ctk.CTkFrame):
         )
         extExcel.open_explorer()
         print(extExcel.savedFile)
-        self.controller.destroy()
+        self.master.destroy()

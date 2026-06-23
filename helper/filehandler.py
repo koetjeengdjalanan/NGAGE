@@ -242,7 +242,9 @@ class FileHandler:
             case ".csv":
                 if self.encoder_detect() is None:
                     raise ValueError("Invalid Encoding", self.encoder_detect())
-                self.sourceData = pd.read_csv(filepath_or_buffer=source_file, skiprows=skipRows)
+                self.sourceData = pd.read_csv(
+                    filepath_or_buffer=source_file, skiprows=skipRows, on_bad_lines="skip", skip_blank_lines=True
+                )
             case ".xlsx" | ".xls" | ".xlsm" | ".xlsb":
                 self.sourceData = pd.read_excel(io=source_file, skiprows=skipRows)
             case _:

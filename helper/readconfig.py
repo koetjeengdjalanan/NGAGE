@@ -18,21 +18,32 @@ class AppConfig(ConfigParser):
     """Application configuration parser subclassing ConfigParser."""
 
     configEnum: list[dict] = [{"criteria": "="}]
+    CONFIG_VERSION: str = "0.7.0"
+    SKIP_ROWS: int = 0
 
     def __init__(self, reset: bool = False) -> None:
         super().__init__()
         self.tmpDir = Path(path.join(gettempdir(), "86c9817f304beed29e7faf6019dd3864"))
         if not self.tmpDir.is_dir() or not Path(path.join(self.tmpDir, "config.ini")).is_file() or reset:
-            self.tmpDir.mkdir(exist_ok=True, parents=True)
+            self.set_default_config()
+        try:
+            if (preamble := GetConfigAsList(config=self, section="preamble")) and preamble.get(
+                "config_version"
+            ) != self.CONFIG_VERSION:
+                self.set_default_config()
+        except Exception:
             self.set_default_config()
         with open(Path(path.join(self.tmpDir, "config.ini")), "r") as f:
             self.read_file(f)
+        self.skip_rows = self.getint("preamble", "skip_rows", fallback=self.SKIP_ROWS)
 
     def set_default_config(self) -> None:
         """Set the default formatting and availability configurations."""
+        self.tmpDir.mkdir(exist_ok=True, parents=True)
+        self["preamble"] = {"config_version": self.CONFIG_VERSION, "skip_rows": "0"}
         self["fmt"] = {
             "Capacity": (
-                '['
+                "["
                 '{"type": "cell","criteria": "=","value": 0,'
                 '"format": {"num_format": "0.000 %%","bg_color": "#006400","font_color": "#FFFFFF"}},'
                 '{"type": "cell","criteria": "between","minimum": 0,"maximum": 0.5,'
@@ -43,17 +54,17 @@ class AppConfig(ConfigParser):
                 '"format": {"num_format": "0.000 %%","bg_color": "#FF9933","font_color": "#000000"}},'
                 '{"type": "cell","criteria": ">=","value": 0.8,'
                 '"format": {"num_format": "0.000 %%","bg_color": "#DB4035","font_color": "#FFFFFF"}}'
-                ']'
+                "]"
             ),
             "Availability": (
-                '['
+                "["
                 '{"type": "cell","criteria": "<","value": 3,'
                 '"format": {"num_format": "#,##0","bg_color": "#299438","font_color": "#FFFFFF"}},'
                 '{"type": "cell","criteria": "between","minimum": 3,"maximum": 5,'
                 '"format": {"num_format": "#,##0","bg_color": "#FF9933","font_color": "#000000"}},'
                 '{"type": "cell","criteria": ">","value": 5,'
                 '"format": {"num_format": "#,##0","bg_color": "#DB4035","font_color": "#FFFFFF"}}'
-                ']'
+                "]"
             ),
         }
         self["availability"] = {

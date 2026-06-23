@@ -9,6 +9,7 @@ import toml
 
 from helper.getfile import GetFile
 from helper.readconfig import AppConfig
+from models import Controller, Environment
 from view.availability import Availability
 from view.capacity import Capacity
 
@@ -38,14 +39,14 @@ class App(ctk.CTk):
             f"+{(self.winfo_screenheight() - start_size[1]) // 4}"
         )
         self.resizable(False, False)
-        self.env = env
-        self.config: AppConfig = AppConfig(reset=self.env.get("DEV", False))
+        env_var = Environment()
+        controller = Controller(config=AppConfig(reset=env_var.dev), env=env_var)
         tabView = ctk.CTkTabview(master=self)
         tabView.pack(fill="both", expand=True)
         tabView.add(name="Capacity")
-        Capacity(master=tabView.tab(name="Capacity"), controller=self).pack(fill="both", expand=True)
+        Capacity(master=tabView.tab(name="Capacity"), controller=controller).pack(fill="both", expand=True)
         tabView.add(name="Availability")
-        Availability(master=tabView.tab(name="Availability"), controller=self).pack(fill="both", expand=True)
+        Availability(master=tabView.tab(name="Availability"), controller=controller).pack(fill="both", expand=True)
 
 
 # IDEA: Add a function to writ a default env file if not exist to tempdir and use it as default

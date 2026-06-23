@@ -3,6 +3,7 @@
 import tkinter
 import tkinter.messagebox
 from pathlib import Path
+from warnings import warn
 
 import customtkinter as ctk
 import pandas as pd
@@ -17,8 +18,10 @@ from helper.processing import (
     process_firewall,
     process_with_from_n_to,
 )
-from helper.readconfig import CopyLTFile, GetConfigAsList, ReadLookupTable
+from helper.readconfig import GetConfigAsList
+from models import Controller
 from view.configtoplevel import ConfigTopLevel
+from view.no_lt import init_view
 
 
 class Capacity(ctk.CTkFrame):
@@ -26,85 +29,53 @@ class Capacity(ctk.CTkFrame):
 
     lookupTableName = "Capacity.lt"
 
-    def __init__(self, master, controller) -> None:
+    def __init__(self, master: ctk.CTkFrame, controller: Controller) -> None:
         super().__init__(master=master, fg_color="transparent", corner_radius=None)
+        self._name = "Capacity"
         self.controller = controller
         self.dir: Path = Path().cwd()
         self.rawData: dict[str, dict[str, pd.DataFrame]] = {}
         self.configTopLevel = None
-        self.init_view()
-
-    def init_view(self) -> None:
-        """Initialize the Capacity view by building the input forms and action buttons."""
-        [item.destroy() for item in self.winfo_children()]
-        try:
-            self.lookUpTable = ReadLookupTable(
-                filePath=self.controller.config.tmpDir.joinpath(self.lookupTableName)
-            )
-            self.inputFrame = ctk.CTkScrollableFrame(
-                master=self, fg_color="transparent"
-            )
-            self.inputFrame.pack(fill=ctk.BOTH, expand=True)
-            self.__general_input_forms()
-            self.__fFive_input_forms()
-            self.__firewall_input_forms()
-            self.__action_button()
-            if self.controller.env["DEV"]:
-                self.insertOnDev()
-        except FileNotFoundError:
-            self.no_lt_view(reason="FileNotFoundError")
-        except Exception as Error:
-            raise Exception(Error)
-
-    def no_lt_view(self, reason: str) -> None:
-        """Display placeholder view when lookup table file is missing.
-
-        Args:
-            reason (str): Reason description.
-        """
-        def get_Lt(*args, **kwargs):
-            if CopyLTFile(self.lookupTableName) is not None:
-                self.init_view()
-
-        noLTFrame = ctk.CTkFrame(
+        self.views_func = [
+            self.__general_input_forms,
+            self.__fFive_input_forms,
+            self.__firewall_input_forms,
+            self.__action_button,
+        ]
+        self.inputFrame: ctk.CTkScrollableFrame
+        self.lookUpTable: dict[str, pd.DataFrame]
+        init_view(
             master=self,
-            fg_color="transparent",
-            cursor="hand2",
+            lookup_table_path=self.controller.config.tmpDir.joinpath(self.lookupTableName),
+            views_func=self.views_func,
         )
-        noLTFrame.pack(fill=ctk.BOTH, expand=True)
-        noLTLabel = ctk.CTkLabel(
-            master=noLTFrame,
-            text=reason + "\nChoose Lookup Table!",
-            font=("", 24),
-            cursor="hand2",
-        )
-        noLTLabel.pack(fill=ctk.BOTH, expand=True)
-        noLTFrame.bind(sequence="<1>", command=get_Lt)
-        noLTLabel.bind(sequence="<1>", command=get_Lt)
 
     def insertOnDev(self):
         """Pre-populate files automatically when running in dev mode."""
-        for each in self.lookUpTable.keys():
-            if each not in self.controller.env["sourceFiles"]:
-                continue
-            print(f"assign: {each}")
-            self.rawData[each] = {}
-            for type in self.controller.env["sourceFiles"][each]:
-                print(f"⊢→ {type}")
-                match each:
-                    case "F5":
-                        pathInput = self.f5FilePathInput[type]
-                    case "Firewall_Resource":
-                        pathInput = self.firewallInputPath[type]
-                    case _:
-                        pathInput = self.inputFilePathInput[each][type]
-                self.pick_file(
-                    entry=pathInput,
-                    name=each,
-                    type=type,
-                    filePath=Path(self.controller.env["sourceFiles"][each][type]),
-                    isResource=False if "bw-" in type else True,
-                )
+        warn(
+            "insertOnDev is for development/testing purposes only and should not be used in production.", RuntimeWarning
+        )
+        # for each in self.lookUpTable.keys():
+        #     if each not in self.controller.env["sourceFiles"]:
+        #         continue
+        #     print(f"assign: {each}")
+        #     self.rawData[each] = {}
+        #     for type in self.controller.env["sourceFiles"][each]:
+        #         print(f"⊢→ {type}")
+        #         match each:
+        #             case "F5":
+        #                 pathInput = self.f5FilePathInput[type]
+        #             case "Firewall_Resource":
+        #                 pathInput = self.firewallInputPath[type]
+        #             case _:
+        #                 pathInput = self.inputFilePathInput[each][type]
+        #         self.pick_file(
+        #             entry=pathInput,
+        #             name=each,
+        #             type=type,
+        #             filePath=Path(self.controller.env["sourceFiles"][each][type]),
+        #             isResource=False if "bw-" in type else True,
+        #         )
 
     # TODO: Refactor this method to be more readable & reuseable
     def __general_input_forms(self) -> None:
@@ -115,41 +86,25 @@ class Capacity(ctk.CTkFrame):
         inputFormsFrame.columnconfigure(index=0, weight=1)
         inputFormsFrame.columnconfigure(index=1, weight=3)
         inputFormsFrame.columnconfigure(index=2, weight=3)
-        ctk.CTkLabel(
-            master=inputFormsFrame, text="Bandwidths In-Out", font=("", 24)
-        ).grid(column=0, row=0, sticky="nsew", padx=5, pady=10, columnspan=3)
-        ctk.CTkLabel(master=inputFormsFrame, text="Bandwidth In").grid(
-            column=1, row=1, sticky="nsew", padx=5, pady=5
+        ctk.CTkLabel(master=inputFormsFrame, text="Bandwidths In-Out", font=("", 24)).grid(
+            column=0, row=0, sticky="nsew", padx=5, pady=10, columnspan=3
         )
-        ctk.CTkLabel(master=inputFormsFrame, text="Bandwidth Out").grid(
-            column=2, row=1, sticky="nsew", padx=5, pady=5
-        )
+        ctk.CTkLabel(master=inputFormsFrame, text="Bandwidth In").grid(column=1, row=1, sticky="nsew", padx=5, pady=5)
+        ctk.CTkLabel(master=inputFormsFrame, text="Bandwidth Out").grid(column=2, row=1, sticky="nsew", padx=5, pady=5)
         inputFormsFrame.columnconfigure(index=2, weight=3)
         for id, input in enumerate(iterable=self.lookUpTable.keys(), start=2):
             if input in ["F5", "Firewall_Resource"]:
                 continue
-            ctk.CTkLabel(master=inputFormsFrame, text=input).grid(
-                column=0, row=id, sticky=ctk.W, padx=5, pady=5
-            )
+            ctk.CTkLabel(master=inputFormsFrame, text=input).grid(column=0, row=id, sticky=ctk.W, padx=5, pady=5)
             self.inputFilePathInput[input] = {}
-            self.inputFilePathInput[input]["bw-in"] = ctk.CTkEntry(
-                master=inputFormsFrame, state=ctk.DISABLED
-            )
-            self.inputFilePathInput[input]["bw-in"].grid(
-                column=1, row=id, sticky="nsew", padx=5, pady=5
-            )
+            self.inputFilePathInput[input]["bw-in"] = ctk.CTkEntry(master=inputFormsFrame, state=ctk.DISABLED)
+            self.inputFilePathInput[input]["bw-in"].grid(column=1, row=id, sticky="nsew", padx=5, pady=5)
             self.inputFilePathInput[input]["bw-in"].bind(
                 "<1>",
-                lambda event, x=input: self.pick_file(
-                    entry=self.inputFilePathInput[x]["bw-in"], name=x, type="bw-in"
-                ),
+                lambda event, x=input: self.pick_file(entry=self.inputFilePathInput[x]["bw-in"], name=x, type="bw-in"),
             )
-            self.inputFilePathInput[input]["bw-out"] = ctk.CTkEntry(
-                master=inputFormsFrame, state=ctk.DISABLED
-            )
-            self.inputFilePathInput[input]["bw-out"].grid(
-                column=2, row=id, sticky="nsew", padx=5, pady=5
-            )
+            self.inputFilePathInput[input]["bw-out"] = ctk.CTkEntry(master=inputFormsFrame, state=ctk.DISABLED)
+            self.inputFilePathInput[input]["bw-out"].grid(column=2, row=id, sticky="nsew", padx=5, pady=5)
             self.inputFilePathInput[input]["bw-out"].bind(
                 "<1>",
                 lambda event, x=input: self.pick_file(
@@ -170,45 +125,27 @@ class Capacity(ctk.CTkFrame):
         ctk.CTkLabel(master=f5FormsFrame, text="F5 Forms Inputs", font=("", 24)).grid(
             column=0, row=0, sticky="nsew", padx=5, pady=10, columnspan=2
         )
-        ctk.CTkLabel(master=f5FormsFrame, text="Bandwidth In").grid(
-            column=0, row=1, sticky="nsew", padx=5, pady=(5, 0)
-        )
-        self.f5FilePathInput["bw-in"] = ctk.CTkEntry(
-            master=f5FormsFrame, state=ctk.DISABLED
-        )
-        self.f5FilePathInput["bw-in"].grid(
-            column=0, row=2, sticky="nsew", padx=5, pady=(0, 5)
-        )
+        ctk.CTkLabel(master=f5FormsFrame, text="Bandwidth In").grid(column=0, row=1, sticky="nsew", padx=5, pady=(5, 0))
+        self.f5FilePathInput["bw-in"] = ctk.CTkEntry(master=f5FormsFrame, state=ctk.DISABLED)
+        self.f5FilePathInput["bw-in"].grid(column=0, row=2, sticky="nsew", padx=5, pady=(0, 5))
         self.f5FilePathInput["bw-in"].bind(
             "<1>",
-            lambda event, x="bw-in": self.pick_file(
-                entry=self.f5FilePathInput[x], name="F5", type=x
-            ),
+            lambda event, x="bw-in": self.pick_file(entry=self.f5FilePathInput[x], name="F5", type=x),
         )
         ctk.CTkLabel(master=f5FormsFrame, text="Bandwidth Out").grid(
             column=1, row=1, sticky="nsew", padx=5, pady=(5, 0)
         )
-        self.f5FilePathInput["bw-out"] = ctk.CTkEntry(
-            master=f5FormsFrame, state=ctk.DISABLED
-        )
-        self.f5FilePathInput["bw-out"].grid(
-            column=1, row=2, sticky="nsew", padx=5, pady=(0, 5)
-        )
+        self.f5FilePathInput["bw-out"] = ctk.CTkEntry(master=f5FormsFrame, state=ctk.DISABLED)
+        self.f5FilePathInput["bw-out"].grid(column=1, row=2, sticky="nsew", padx=5, pady=(0, 5))
         self.f5FilePathInput["bw-out"].bind(
             "<1>",
-            lambda event, x="bw-out": self.pick_file(
-                entry=self.f5FilePathInput[x], name="F5", type=x
-            ),
+            lambda event, x="bw-out": self.pick_file(entry=self.f5FilePathInput[x], name="F5", type=x),
         )
         ctk.CTkLabel(master=f5FormsFrame, text="PDC CPU 95th %").grid(
             column=0, row=3, sticky="nsew", padx=5, pady=(5, 0)
         )
-        self.f5FilePathInput["pdc-cpu"] = ctk.CTkEntry(
-            master=f5FormsFrame, state=ctk.DISABLED
-        )
-        self.f5FilePathInput["pdc-cpu"].grid(
-            column=0, row=4, sticky="nsew", padx=5, pady=(0, 5)
-        )
+        self.f5FilePathInput["pdc-cpu"] = ctk.CTkEntry(master=f5FormsFrame, state=ctk.DISABLED)
+        self.f5FilePathInput["pdc-cpu"].grid(column=0, row=4, sticky="nsew", padx=5, pady=(0, 5))
         self.f5FilePathInput["pdc-cpu"].bind(
             "<1>",
             lambda event, x="pdc-cpu": self.pick_file(
@@ -218,12 +155,8 @@ class Capacity(ctk.CTkFrame):
         ctk.CTkLabel(master=f5FormsFrame, text="SDC CPU 95th %").grid(
             column=1, row=3, sticky="nsew", padx=5, pady=(5, 0)
         )
-        self.f5FilePathInput["sdc-cpu"] = ctk.CTkEntry(
-            master=f5FormsFrame, state=ctk.DISABLED
-        )
-        self.f5FilePathInput["sdc-cpu"].grid(
-            column=1, row=4, sticky="nsew", padx=5, pady=(0, 5)
-        )
+        self.f5FilePathInput["sdc-cpu"] = ctk.CTkEntry(master=f5FormsFrame, state=ctk.DISABLED)
+        self.f5FilePathInput["sdc-cpu"].grid(column=1, row=4, sticky="nsew", padx=5, pady=(0, 5))
         self.f5FilePathInput["sdc-cpu"].bind(
             "<1>",
             lambda event, x="sdc-cpu": self.pick_file(
@@ -233,17 +166,11 @@ class Capacity(ctk.CTkFrame):
         ctk.CTkLabel(master=f5FormsFrame, text="Mem 95th %").grid(
             column=0, row=5, sticky="nsew", padx=5, pady=(5, 0), columnspan=2
         )
-        self.f5FilePathInput["mem"] = ctk.CTkEntry(
-            master=f5FormsFrame, state=ctk.DISABLED
-        )
-        self.f5FilePathInput["mem"].grid(
-            column=0, row=6, sticky="nsew", padx=5, pady=(0, 5), columnspan=2
-        )
+        self.f5FilePathInput["mem"] = ctk.CTkEntry(master=f5FormsFrame, state=ctk.DISABLED)
+        self.f5FilePathInput["mem"].grid(column=0, row=6, sticky="nsew", padx=5, pady=(0, 5), columnspan=2)
         self.f5FilePathInput["mem"].bind(
             "<1>",
-            lambda event, x="mem": self.pick_file(
-                entry=self.f5FilePathInput[x], name="F5", type=x, isResource=True
-            ),
+            lambda event, x="mem": self.pick_file(entry=self.f5FilePathInput[x], name="F5", type=x, isResource=True),
         )
 
     # TODO: Refactor this method to be more readable & reuseable
@@ -256,18 +183,12 @@ class Capacity(ctk.CTkFrame):
         firewallFormsFrame.pack(fill=ctk.BOTH, expand=False, padx=10, pady=10)
         firewallFormsFrame.columnconfigure(0, weight=1)
         firewallFormsFrame.columnconfigure(1, weight=1)
-        ctk.CTkLabel(
-            master=firewallFormsFrame, text="Firewall Forms Inputs", font=("", 24)
-        ).grid(column=0, row=0, sticky="nsew", padx=5, pady=10, columnspan=2)
-        ctk.CTkLabel(master=firewallFormsFrame, text="CPU").grid(
-            column=0, row=1, sticky="nsew", padx=5, pady=(5, 0)
+        ctk.CTkLabel(master=firewallFormsFrame, text="Firewall Forms Inputs", font=("", 24)).grid(
+            column=0, row=0, sticky="nsew", padx=5, pady=10, columnspan=2
         )
-        self.firewallInputPath["cpu"] = ctk.CTkEntry(
-            master=firewallFormsFrame, state=ctk.DISABLED
-        )
-        self.firewallInputPath["cpu"].grid(
-            column=0, row=2, sticky="nsew", padx=5, pady=(0, 5)
-        )
+        ctk.CTkLabel(master=firewallFormsFrame, text="CPU").grid(column=0, row=1, sticky="nsew", padx=5, pady=(5, 0))
+        self.firewallInputPath["cpu"] = ctk.CTkEntry(master=firewallFormsFrame, state=ctk.DISABLED)
+        self.firewallInputPath["cpu"].grid(column=0, row=2, sticky="nsew", padx=5, pady=(0, 5))
         self.firewallInputPath["cpu"].bind(
             "<1>",
             lambda event, x="cpu": self.pick_file(
@@ -277,15 +198,9 @@ class Capacity(ctk.CTkFrame):
                 isResource=True,
             ),
         )
-        ctk.CTkLabel(master=firewallFormsFrame, text="Mem").grid(
-            column=1, row=1, sticky="nsew", padx=5, pady=(5, 0)
-        )
-        self.firewallInputPath["mem"] = ctk.CTkEntry(
-            master=firewallFormsFrame, state=ctk.DISABLED
-        )
-        self.firewallInputPath["mem"].grid(
-            column=1, row=2, sticky="nsew", padx=5, pady=(0, 5)
-        )
+        ctk.CTkLabel(master=firewallFormsFrame, text="Mem").grid(column=1, row=1, sticky="nsew", padx=5, pady=(5, 0))
+        self.firewallInputPath["mem"] = ctk.CTkEntry(master=firewallFormsFrame, state=ctk.DISABLED)
+        self.firewallInputPath["mem"].grid(column=1, row=2, sticky="nsew", padx=5, pady=(0, 5))
         self.firewallInputPath["mem"].bind(
             "<1>",
             lambda event, x="mem": self.pick_file(
@@ -298,12 +213,8 @@ class Capacity(ctk.CTkFrame):
         ctk.CTkLabel(master=firewallFormsFrame, text="Connection Count CP").grid(
             column=0, row=3, sticky="nsew", padx=5, pady=(5, 0)
         )
-        self.firewallInputPath["con-cp"] = ctk.CTkEntry(
-            master=firewallFormsFrame, state=ctk.DISABLED
-        )
-        self.firewallInputPath["con-cp"].grid(
-            column=0, row=4, sticky="nsew", padx=5, pady=(0, 5)
-        )
+        self.firewallInputPath["con-cp"] = ctk.CTkEntry(master=firewallFormsFrame, state=ctk.DISABLED)
+        self.firewallInputPath["con-cp"].grid(column=0, row=4, sticky="nsew", padx=5, pady=(0, 5))
         self.firewallInputPath["con-cp"].bind(
             "<1>",
             lambda event, x="con-cp": self.pick_file(
@@ -316,12 +227,8 @@ class Capacity(ctk.CTkFrame):
         ctk.CTkLabel(master=firewallFormsFrame, text="Connection Count Non-CP").grid(
             column=1, row=3, sticky="nsew", padx=5, pady=(5, 0)
         )
-        self.firewallInputPath["con-noncp"] = ctk.CTkEntry(
-            master=firewallFormsFrame, state=ctk.DISABLED
-        )
-        self.firewallInputPath["con-noncp"].grid(
-            column=1, row=4, sticky="nsew", padx=5, pady=(0, 5)
-        )
+        self.firewallInputPath["con-noncp"] = ctk.CTkEntry(master=firewallFormsFrame, state=ctk.DISABLED)
+        self.firewallInputPath["con-noncp"].grid(column=1, row=4, sticky="nsew", padx=5, pady=(0, 5))
         self.firewallInputPath["con-noncp"].bind(
             "<1>",
             lambda event, x="con-noncp": self.pick_file(
@@ -342,24 +249,20 @@ class Capacity(ctk.CTkFrame):
                 else:
                     raise AttributeError
             except AttributeError:
-                config_list = GetConfigAsList(
-                    config=self.controller.config, section="fmt"
-                )["capacity"]
+                config_list = GetConfigAsList(config=self.controller.config, section="fmt")["capacity"]
                 if not isinstance(config_list, list):
                     config_list = []
                 self.configTopLevel = ConfigTopLevel(
-                    master=self,
-                    controller=self.controller,
-                    configFormat=config_list,
+                    master=self, controller=self.controller, lt_table_name=self.lookupTableName
                 )
                 self.configTopLevel.wait_visibility()
                 self.configTopLevel.grab_set()
 
         actionButtonFrame = ctk.CTkFrame(master=self, fg_color="transparent")
         actionButtonFrame.pack(fill=ctk.BOTH, expand=False, padx=10, pady=10)
-        ctk.CTkButton(
-            master=actionButtonFrame, text="Confirm", command=self.process_data
-        ).pack(side=ctk.RIGHT, ipadx=10)
+        ctk.CTkButton(master=actionButtonFrame, text="Confirm", command=self.process_data).pack(
+            side=ctk.RIGHT, ipadx=10
+        )
         ctk.CTkButton(
             master=actionButtonFrame,
             text="Config",
@@ -391,7 +294,7 @@ class Capacity(ctk.CTkFrame):
         sourceFile = fileHandler.sourceFile
         if sourceFile is None:
             return None
-        sourceData = fileHandler.read_file(skipRows=1).sourceData
+        sourceData = fileHandler.read_file(skipRows=self.controller.config.SKIP_ROWS).sourceData
         if sourceData is None:
             return None
         self.dir = Path(str(sourceFile).rsplit(sep="/", maxsplit=2)[0]).absolute()
@@ -404,18 +307,12 @@ class Capacity(ctk.CTkFrame):
             try:
                 if not isResource:
                     self.rawData[name][type] = sourceData.assign(
-                        Bandwidth=sourceData["95 Percentile"]
-                        .str.extract(r"([0-9.]+)\s*\w+/s")[0]
-                        .astype(float),
-                        Unit=sourceData["95 Percentile"].str.extract(
-                            r"[0-9.]+\s*(\w+/s)"
-                        )[0],
+                        Bandwidth=sourceData["95 Percentile"].str.extract(r"([0-9.]+)\s*\w+/s")[0].astype(float),
+                        Unit=sourceData["95 Percentile"].str.extract(r"[0-9.]+\s*(\w+/s)")[0],
                     ).apply(bw_unit_normalize, axis=1)
                 else:
                     self.rawData[name][type] = (
-                        sourceData.rename({"Metric": "Hostname"}).drop(
-                            ["Month"], axis=1
-                        )
+                        sourceData.rename({"Metric": "Hostname"}).drop(["Month"], axis=1)
                         if "Metric" in sourceData.columns
                         else sourceData.drop(["Time"], axis=1)
                     )
@@ -464,10 +361,7 @@ class Capacity(ctk.CTkFrame):
             )
         elif "F5" in self.lookUpTable.keys():
             infoError.append("F5 \t Not Fount in Input, Skipping!\n")
-        if (
-            "Firewall_Resource" in self.rawData.keys()
-            and "Firewall_Resource" in self.lookUpTable.keys()
-        ):
+        if "Firewall_Resource" in self.rawData.keys() and "Firewall_Resource" in self.lookUpTable.keys():
             res["Firewall_Resource"] = process_firewall(
                 raw=self.rawData["Firewall_Resource"],
                 lookUpTable=self.lookUpTable["Firewall_Resource"],
@@ -481,9 +375,7 @@ class Capacity(ctk.CTkFrame):
             )
         extExcel = ExtendedFileProcessor()
         extExcel.save_file_loc(dirStr=self.dir)
-        rules_list = GetConfigAsList(config=self.controller.config, section="fmt")[
-            "capacity"
-        ]
+        rules_list = GetConfigAsList(config=self.controller.config, section="fmt")["capacity"]
         if not isinstance(rules_list, list):
             rules_list = []
         extExcel.ext_export(
@@ -493,4 +385,4 @@ class Capacity(ctk.CTkFrame):
         )
         extExcel.open_explorer()
         print(extExcel.savedFile)
-        self.controller.destroy()
+        self.master.destroy()
