@@ -40,7 +40,7 @@ class App(ctk.CTk):
         )
         self.resizable(False, False)
         env_var = Environment()
-        controller = Controller(config=AppConfig(reset=env_var.dev), env=env_var)
+        controller = Controller(root=self, config=AppConfig(reset=env_var.dev), env=env_var)
         tabView = ctk.CTkTabview(master=self)
         tabView.pack(fill="both", expand=True)
         tabView.add(name="Capacity")

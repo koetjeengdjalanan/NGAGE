@@ -2,6 +2,8 @@
 
 from os import getenv
 
+import customtkinter as ctk
+
 from helper.readconfig import AppConfig
 
 
@@ -33,9 +35,11 @@ class Controller:
             Runtime environment settings.
     """
 
+    root: ctk.CTk
     config = AppConfig()
     env = Environment()
 
-    def __init__(self, config: AppConfig, env: Environment):
+    def __init__(self, root: ctk.CTk, config: AppConfig, env: Environment):
+        self.root = root
         self.config = config
         self.env = env

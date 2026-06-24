@@ -100,7 +100,7 @@ def CopyLTFile(fileName: str) -> Path | None:
     lTFile = fd.askopenfilename(
         title=f"Choose {fileName.removesuffix('.lt')} Lookup Table",
         filetypes=[("Excel Files", "*.xlsx"), ("All Files", "*.*")],
-        initialdir="~",
+        initialdir=Path.cwd(),
     )
     if not lTFile or lTFile is None:
         return None

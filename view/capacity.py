@@ -385,4 +385,4 @@ class Capacity(ctk.CTkFrame):
         )
         extExcel.open_explorer()
         print(extExcel.savedFile)
-        self.master.destroy()
+        self.controller.root.destroy()
