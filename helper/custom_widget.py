@@ -1,4 +1,9 @@
-"""Custom widgets for the application user interface."""
+"""Custom CustomTkinter widgets for interactive list selection.
+
+Provide ``ItemState`` for tracking individual checkbox state and
+``ListSelector``, a composite frame that renders a searchable,
+scrollable checklist with add and remove capabilities.
+"""
 
 from typing import Any, List, Tuple
 
@@ -6,21 +11,44 @@ import customtkinter as ctk
 
 
 class ItemState:
-    """Represents the checked state of an item in the ListSelector."""
+    """Track the checked state of a single item in a ``ListSelector``.
+
+    Attributes:
+        name (str): The display name of the item.
+        var (ctk.BooleanVar): Tkinter boolean variable bound to the
+            item's checkbox, ``True`` when checked.
+    """
 
     def __init__(self, name: str, var: ctk.BooleanVar):
-        """Initialize ItemState with a name and a BooleanVar.
+        """Initialize an item with a display name and a boolean variable.
 
         Args:
-            name (str): The name of the item.
-            var (ctk.BooleanVar): The Tkinter boolean variable tracking the item's checked state.
+            name (str): The display name of the item shown next to its
+                checkbox.
+            var (ctk.BooleanVar): The Tkinter boolean variable that
+                tracks whether this item is checked.
         """
         self.name = name
         self.var = var
 
 
 class ListSelector(ctk.CTkFrame):
-    """A custom frame for displaying a list of items with checkboxes."""
+    """Searchable checklist frame with add and remove capabilities.
+
+    Render a titled frame containing a search bar, an "Add" button, and
+    a scrollable list of checkboxes. Users can filter items by typing in
+    the search bar, add new items that do not already exist, remove
+    existing items via a clickable label, and toggle individual items
+    on or off.
+
+    Attributes:
+        itemsVar (list[ItemState]): The current list of items and their
+            checked states.
+        searchVal (ctk.StringVar): The current search-bar text, used to
+            filter the displayed checklist.
+        listbox (ctk.CTkScrollableFrame): The scrollable container that
+            holds the rendered checkbox rows.
+    """
 
     def __init__(
         self,
@@ -62,6 +90,11 @@ class ListSelector(ctk.CTkFrame):
         self.__init_populate()
 
     def __init_populate(self):
+        """Build the initial scrollable checklist from ``itemsVar``.
+
+        Create a ``CTkScrollableFrame`` and populate it with one row per
+        item, each containing a checkbox and a clickable "remove" label.
+        """
         self.listbox = ctk.CTkScrollableFrame(master=self)
         self.listbox.pack(fill=ctk.BOTH, expand=True)
         for item in self.itemsVar:
@@ -85,16 +118,24 @@ class ListSelector(ctk.CTkFrame):
             __.pack(side=ctk.RIGHT, ipadx=10)
 
     def remove_items(self, item: ItemState) -> None:
-        """Remove an item from the checklist.
+        """Remove an item from the checklist and refresh the display.
 
         Args:
-            item (ItemState): The item to remove.
+            item (ItemState): The ``ItemState`` instance to remove from
+                the internal item list.
         """
         self.itemsVar.remove(item)
         self.repopulate_checklist()
 
     def repopulate_checklist(self, *args, **kwargs) -> None:
-        """Repopulate the checklist scroll frame based on the search query."""
+        """Rebuild the visible checklist, applying the current search filter.
+
+        Destroy all existing child widgets inside the scrollable frame
+        and re-create checkbox rows only for items whose names contain
+        the current ``searchVal`` substring (case-insensitive). This
+        method is called automatically whenever the search text changes
+        and after an item is added or removed.
+        """
         [x.destroy() for x in self.listbox.winfo_children()]
         for item in self.itemsVar:
             if self.searchVal.get().lower() not in item.name.lower():
@@ -119,6 +160,13 @@ class ListSelector(ctk.CTkFrame):
             __.pack(side=ctk.RIGHT, ipadx=10)
 
     def __search_bar(self):
+        """Build the search bar frame with a text entry and an "Add" button.
+
+        Wire the search entry's ``trace_add`` callback to
+        ``repopulate_checklist`` so the checklist filters in real time.
+        The "Add" button is enabled only when the search text is
+        non-empty and does not match an existing item name.
+        """
         def add_to_list():
             self.itemsVar.append(
                 ItemState(
@@ -156,13 +204,13 @@ class ListSelector(ctk.CTkFrame):
         self.searchVal.trace_add("write", check_if_exists)
 
     def get_items(self) -> List[str]:
-        """Retrieve the selected items from the ListSelector.
+        """Return the names of all currently checked items.
 
-        This method returns a list of strings representing the names of the items
-        that have been selected (checked) in the ListSelector widget.
+        Iterate over ``itemsVar`` and collect the ``name`` of every
+        ``ItemState`` whose ``var`` is ``True``.
 
         Returns:
-            List[str]: A list containing the names of the selected items. If no items
-            are selected, an empty list is returned.
+            List[str]: A list of item names that are currently checked.
+                An empty list is returned when no items are selected.
         """
         return [item.name for item in self.itemsVar if item.var.get()]

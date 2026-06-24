@@ -1,4 +1,10 @@
-"""Compilation of all models for NGAGE."""
+"""Data models shared across the NGAGE application.
+
+Define the ``Environment`` and ``Controller`` classes that encapsulate
+runtime environment settings and wire together the application's root
+window, configuration, and environment into a single dependency
+container passed to every view.
+"""
 
 from os import getenv
 
@@ -8,13 +14,18 @@ from helper.readconfig import AppConfig
 
 
 class Environment:
-    """Runtime environment configuration.
+    """Runtime environment configuration read from OS environment variables.
+
+    Inspect the ``DEV`` and ``LOG_LEVEL`` environment variables at
+    construction time and expose them as typed attributes for use
+    throughout the application.
 
     Attributes:
-        dev : bool
-            True when running in development mode (ENV var DEV == "true").
-        log_level : str
-            Logging level, defaults to "INFO" or value from LOG_LEVEL env var.
+        dev (bool): ``True`` when the ``DEV`` environment variable is
+            set to ``"true"`` (case-insensitive), enabling development
+            mode features such as config reset.
+        log_level (str): Logging verbosity level. Defaults to ``"INFO"``
+            unless overridden by the ``LOG_LEVEL`` environment variable.
     """
 
     dev: bool = False
@@ -26,13 +37,19 @@ class Environment:
 
 
 class Controller:
-    """Application controller aggregating configuration and environment.
+    """Central dependency container shared with all views.
+
+    Aggregate the root ``CTk`` window, the parsed ``AppConfig``, and the
+    ``Environment`` into a single object that is passed to every view
+    frame, giving each view access to application-wide state without
+    global variables.
 
     Attributes:
-        config : AppConfig
-            Parsed application configuration.
-        env : Environment
-            Runtime environment settings.
+        root (ctk.CTk): The root CustomTkinter application window.
+        config (AppConfig): Parsed application configuration loaded from
+            the temporary config file.
+        env (Environment): Runtime environment settings read from OS
+            environment variables.
     """
 
     root: ctk.CTk

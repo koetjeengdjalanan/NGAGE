@@ -1,4 +1,10 @@
-"""Module for processing network device bandwidth, CPU, memory, and firewall log data."""
+"""Data-processing pipelines for network device bandwidth, CPU, memory, and logs.
+
+Provide pure-function processors that merge raw Grafana CSV exports
+against Excel lookup tables to compute capacity utilisation percentages
+and availability occurrence counts for various device categories
+(branch routers, enterprise, F5 load balancers, firewalls, etc.).
+"""
 
 import math
 
@@ -6,13 +12,23 @@ import pandas as pd
 
 
 def bw_unit_normalize(input):
-    """Normalize the bandwidth of a record to Mbps.
+    """Normalize a bandwidth record's value to megabits per second.
+
+    Convert the ``Bandwidth`` field in-place from its original unit
+    (bps, kbps, Mbps, Gbps, or their ``/s`` equivalents) to Mbps by
+    multiplying by the appropriate power of ten, then set ``Unit`` to
+    ``"Mbps"``.
+
+    Note:
+        This function **mutates** the input record in-place.
 
     Args:
-        input (dict or pd.Series): The record containing 'Bandwidth' and 'Unit'.
+        input (dict | pd.Series): A record containing ``Bandwidth``
+            (numeric) and ``Unit`` (str) fields.
 
     Returns:
-        dict or pd.Series: The record with normalized 'Bandwidth' and unit set to 'Mbps'.
+        dict | pd.Series: The same record with ``Bandwidth`` converted
+            to Mbps and ``Unit`` set to ``"Mbps"``.
     """
     units = {
         "bps": -6,
@@ -30,14 +46,27 @@ def bw_unit_normalize(input):
 
 
 def process_with_from_n_to(raw: dict[str, pd.DataFrame], lookUpTable: pd.DataFrame) -> pd.DataFrame:
-    """Process raw data using lookup table based on 'From' and 'To' hostname/interface pairs.
+    """Merge bandwidth data using From/To hostname-interface pairs.
+
+    For each metric in ``raw``, first attempt a left-join against the
+    lookup table on the *From* hostname and interface columns. For any
+    rows that remain unmatched (``NaN`` bandwidth), fall back to a
+    second join on the *To* columns. Finally, compute a utilisation
+    percentage for each metric and merge all metrics into a single
+    result DataFrame.
 
     Args:
-        raw (dict[str, pd.DataFrame]): Dictionary mapping metric names to DataFrames.
-        lookUpTable (pd.DataFrame): Lookup table containing routing or network links.
+        raw (dict[str, pd.DataFrame]): Mapping of metric names
+            (e.g. ``"bw-in"``, ``"bw-out"``) to DataFrames, each
+            containing ``Hostname``, ``Interface``, ``Bandwidth``, and
+            ``Unit`` columns.
+        lookUpTable (pd.DataFrame): Lookup table with ``From Hostname``,
+            ``From Interface``, ``To Hostname``, ``To Interface``, and
+            ``Bandwidth`` columns describing network links.
 
     Returns:
-        pd.DataFrame: The merged and processed DataFrame.
+        pd.DataFrame: A single DataFrame containing all lookup-table
+            columns plus per-metric bandwidth and percentage columns.
     """
     calc: dict[str, pd.DataFrame] = {}
     for each in list(raw.keys()):
@@ -75,14 +104,23 @@ def process_with_from_n_to(raw: dict[str, pd.DataFrame], lookUpTable: pd.DataFra
 
 
 def process_basic(raw: dict[str, pd.DataFrame], lookUpTable: pd.DataFrame) -> pd.DataFrame:
-    """Process basic hostname/interface data.
+    """Merge bandwidth data using simple hostname-interface matching.
+
+    Unlike ``process_with_from_n_to``, this function joins raw metrics
+    directly on ``Hostname`` and ``Interface`` without a From/To
+    fallback. Compute a utilisation percentage for each metric and merge
+    all metrics into a single result DataFrame.
 
     Args:
-        raw (dict[str, pd.DataFrame]): Dictionary of raw data DataFrames.
-        lookUpTable (pd.DataFrame): The lookup DataFrame.
+        raw (dict[str, pd.DataFrame]): Mapping of metric names to
+            DataFrames, each with ``Hostname``, ``Interface``,
+            ``Bandwidth``, and ``Unit`` columns.
+        lookUpTable (pd.DataFrame): Lookup table with ``Hostname``,
+            ``Interface``, and ``Bandwidth`` columns.
 
     Returns:
-        pd.DataFrame: Merged and calculated DataFrame with percentage values.
+        pd.DataFrame: A single DataFrame containing all lookup-table
+            columns plus per-metric bandwidth and percentage columns.
     """
     calc: dict[str, pd.DataFrame] = {}
     for each in list(raw.keys()):
@@ -112,14 +150,26 @@ def process_basic(raw: dict[str, pd.DataFrame], lookUpTable: pd.DataFrame) -> pd
 
 
 def process_f5(raw: dict[str, pd.DataFrame], lookUpTable: pd.DataFrame) -> pd.DataFrame:
-    """Process F5 CPU, memory, and bandwidth data.
+    """Process F5 load-balancer bandwidth, CPU, and memory metrics.
+
+    Merge inbound and outbound bandwidth data against the lookup table,
+    pivot per-CPU utilisation percentages from the PDC and SDC CPU
+    exports, and join memory utilisation. The resulting DataFrame is
+    reindexed into a fixed column order with ``F5``, ``Hostname``,
+    eight CPU columns, ``mem %``, interface bandwidth, and percentage
+    columns.
 
     Args:
-        raw (dict[str, pd.DataFrame]): Dictionary of F5 metrics (in/out bandwidth, cpu, memory).
-        lookUpTable (pd.DataFrame): Lookup table for F5 interfaces.
+        raw (dict[str, pd.DataFrame]): Dictionary containing keys
+            ``"bw-in"``, ``"bw-out"``, ``"pdc-cpu"``, ``"sdc-cpu"``,
+            and ``"mem"`` mapping to their respective DataFrames.
+        lookUpTable (pd.DataFrame): F5 lookup table with ``Hostname``,
+            ``Interface``, and ``Bandwidth`` columns.
 
     Returns:
-        pd.DataFrame: The processed and re-indexed DataFrame containing F5 performance metrics.
+        pd.DataFrame: A consolidated DataFrame with bandwidth
+            percentages, per-CPU utilisation, and memory utilisation
+            for each F5 host.
     """
     calc: dict[str, pd.DataFrame] = {}
     for each in ["bw-in", "bw-out"]:
@@ -176,14 +226,24 @@ def process_f5(raw: dict[str, pd.DataFrame], lookUpTable: pd.DataFrame) -> pd.Da
 
 
 def process_firewall(raw: dict[str, pd.DataFrame], lookUpTable: pd.DataFrame) -> pd.DataFrame:
-    """Process firewall system performance metrics (CPU, Memory, Connections).
+    """Process firewall CPU, memory, and connection-count metrics.
+
+    Concatenate checkpoint (``con-cp``) and non-checkpoint (``con-noncp``)
+    connection-count DataFrames, then left-join each metric category
+    against the lookup table. Percentage strings (e.g. ``"85.3%"``) are
+    parsed and converted to decimal floats.
 
     Args:
-        raw (dict[str, pd.DataFrame]): Dictionary containing firewall CPU, Memory, and Connection logs.
-        lookUpTable (pd.DataFrame): Lookup table of firewall hosts.
+        raw (dict[str, pd.DataFrame]): Dictionary containing keys
+            ``"cpu"``, ``"mem"``, ``"con-cp"``, and ``"con-noncp"``
+            mapping to their respective DataFrames.
+        lookUpTable (pd.DataFrame): Firewall lookup table with a
+            ``Hostname`` column.
 
     Returns:
-        pd.DataFrame: LookUpTable DataFrame merged with system metrics.
+        pd.DataFrame: The lookup table augmented with ``CPU 95%``,
+            ``Memory 95%``, and ``Connection Count 95%`` columns as
+            decimal floats.
     """
     raw["con"] = pd.concat([raw["con-cp"], raw["con-noncp"]]).reset_index()
     del raw["con-cp"], raw["con-noncp"]
@@ -196,14 +256,21 @@ def process_firewall(raw: dict[str, pd.DataFrame], lookUpTable: pd.DataFrame) ->
 
 
 def conc_df(orig: dict[str, pd.DataFrame], ext: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
-    """Concatenate two dictionaries of DataFrames matching by key.
+    """Concatenate two identically-keyed dictionaries of DataFrames.
+
+    For each key present in ``orig``, vertically concatenate
+    ``orig[key]`` and ``ext[key]`` with ``ignore_index=True``.
 
     Args:
-        orig (dict[str, pd.DataFrame]): Original dictionary of DataFrames.
-        ext (dict[str, pd.DataFrame]): Extension dictionary of DataFrames.
+        orig (dict[str, pd.DataFrame]): Primary dictionary of
+            DataFrames.
+        ext (dict[str, pd.DataFrame]): Extension dictionary whose
+            DataFrames are appended to the corresponding ``orig``
+            entries.
 
     Returns:
-        dict[str, pd.DataFrame]: New dictionary of concatenated DataFrames.
+        dict[str, pd.DataFrame]: New dictionary with the concatenated
+            DataFrames.
     """
     res = {}
     for key in orig.keys():
@@ -212,14 +279,23 @@ def conc_df(orig: dict[str, pd.DataFrame], ext: dict[str, pd.DataFrame]) -> dict
 
 
 def count_occurrences(raw: pd.DataFrame, lookupTable: pd.DataFrame) -> pd.DataFrame:
-    """Count state-down occurrences for each interface in lookupTable.
+    """Count interface-down events per hostname-interface pair.
+
+    Build a regex pattern from the unique interfaces in ``lookupTable``,
+    filter ``raw`` for log messages containing ``"changed state to
+    down"``, extract the matching interface name, deduplicate by
+    timestamp/hostname/interface, and group-count. The counts are
+    left-joined back onto ``lookupTable``.
 
     Args:
-        raw (pd.DataFrame): Raw log messages.
-        lookupTable (pd.DataFrame): Lookup table containing interfaces of interest.
+        raw (pd.DataFrame): Raw syslog DataFrame with ``log_message``,
+            ``@timestamp``, and ``hostname`` columns.
+        lookupTable (pd.DataFrame): Lookup table with ``Headend Router``
+            and ``Interface`` columns.
 
     Returns:
-        pd.DataFrame: The lookupTable with occurrences counted.
+        pd.DataFrame: The lookup table with an added ``Count`` column
+            (integer, zero-filled for interfaces with no events).
     """
     interface_patterns = "|".join(lookupTable["Interface"].unique().astype(str))
     raw = (
@@ -245,15 +321,24 @@ def count_occurrences(raw: pd.DataFrame, lookupTable: pd.DataFrame) -> pd.DataFr
 
 
 def count_by_column(lookupTable: pd.DataFrame, columnList: list[str], raw: pd.DataFrame) -> pd.DataFrame:
-    """Count state-down occurrences grouped by specified hostname columns.
+    """Count interface-down events grouped by specific hostname columns.
+
+    Similar to ``count_occurrences`` but produces one count column per
+    hostname in ``columnList``. For each hostname, filter the grouped
+    counts, merge onto the lookup table, and rename the ``Count``
+    column to the hostname.
 
     Args:
-        lookupTable (pd.DataFrame): Lookup table containing interfaces of interest.
-        columnList (list[str]): List of column names representing hostnames to filter/group by.
-        raw (pd.DataFrame): Raw log messages.
+        lookupTable (pd.DataFrame): Lookup table with an ``Interface``
+            column.
+        columnList (list[str]): Hostnames to count separately. Each
+            hostname becomes its own integer column in the result.
+        raw (pd.DataFrame): Raw syslog DataFrame with ``log_message``,
+            ``@timestamp``, and ``hostname`` columns.
 
     Returns:
-        pd.DataFrame: The lookup table with counted occurrences per column host.
+        pd.DataFrame: The lookup table with one integer count column
+            per hostname in ``columnList``.
     """
     res = lookupTable.copy()
     interface_patterns = "|".join(lookupTable["Interface"].unique().astype(str))

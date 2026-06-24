@@ -1,4 +1,9 @@
-"""Module for handling file paths, dialogs, and reading/writing Excel or CSV files."""
+"""Core file-handling utilities for dialogs, reading, writing, and encoding detection.
+
+Provide the ``FileHandler`` class that encapsulates Tkinter file
+dialogs, automatic character-encoding detection via ``chardet``, and
+read/write operations for CSV and Excel files using ``pandas``.
+"""
 
 from datetime import datetime
 from pathlib import Path
@@ -10,7 +15,28 @@ import pandas as pd
 
 
 class FileHandler:
-    """FileHandler class to manage file selection, reading, and exporting data."""
+    """Manage file selection dialogs, encoding detection, and data I/O.
+
+    Wrap Tkinter file dialogs for selecting source files, choosing save
+    locations, and picking directories. Detect file encoding with
+    ``chardet``, read CSV and Excel files into pandas DataFrames, and
+    export DataFrames back to Excel via xlsxwriter. Also provide a
+    cross-platform file-explorer launcher.
+
+    Attributes:
+        sourceFile (Path | None): Path to the currently selected source
+            file, or ``None`` if no file has been selected.
+        sourceData (pd.DataFrame | None): DataFrame loaded from
+            ``sourceFile``, or ``None`` before reading.
+        initDir (Path): Initial directory shown in file dialogs.
+            Defaults to the user's home directory.
+        destDir (Path): Destination directory used as fallback for save
+            dialogs. Defaults to the current working directory.
+        savedFile (Path): Path where exported files are written.
+            Defaults to ``./saved.xlsx``.
+        encodingList (list[str]): Exhaustive list of Python codec names
+            used to validate the encoding detected by ``chardet``.
+    """
 
     def __init__(
         self,
@@ -20,7 +46,20 @@ class FileHandler:
         destDir: Path = Path().cwd(),
         savedFile: Path = Path("./saved.xlsx").absolute(),
     ) -> None:
-        """Handling File Dialogs and File Operations."""
+        """Initialize the file handler with optional source and destination paths.
+
+        Args:
+            sourceFile (Path | None, optional): Pre-selected source file
+                path. Defaults to ``None``.
+            sourceData (pd.DataFrame | None, optional): Pre-loaded
+                DataFrame to use as source data. Defaults to ``None``.
+            initDir (Path, optional): Initial directory for file dialogs.
+                Defaults to the user's home directory.
+            destDir (Path, optional): Default destination directory for
+                save dialogs. Defaults to the current working directory.
+            savedFile (Path, optional): Default output file path.
+                Defaults to ``./saved.xlsx``.
+        """
         self.sourceFile = sourceFile
         self.sourceData = sourceData
         self.initDir = initDir
@@ -127,14 +166,18 @@ class FileHandler:
         ]
 
     def select_directory(self, dirStr: str | Path = Path().home().absolute()) -> "FileHandler":
-        """Select Directory / Folder Dialog.
+        """Open a directory-selection dialog and store the chosen path.
+
+        Present a Tkinter ``askdirectory`` dialog starting at ``dirStr``.
+        If the user selects a directory, update ``self.initDir`` with the
+        absolute path; otherwise retain the previous value.
 
         Args:
-            dirStr (Path, optional): Defined where the directory or folder should start.
-                Defaults to Path().home().absolute().
+            dirStr (str | Path, optional): Starting directory for the
+                dialog. Defaults to the user's home directory.
 
         Returns:
-            FileHandler: FileHandler Class Object
+            FileHandler: ``self``, to allow method chaining.
         """
         destDirectory = fd.askdirectory(
             initialdir=dirStr,
@@ -151,16 +194,26 @@ class FileHandler:
         timeStamp: bool = True,
         promptDialog: bool = True,
     ) -> "FileHandler":
-        """Select File Location Dialog.
+        """Open a save-file dialog and store the chosen destination path.
+
+        Optionally prepend a ``YYYYMMDD_HHMMSS`` timestamp to the file
+        name. When ``promptDialog`` is ``False``, skip the dialog and
+        build the path from ``dirStr`` and ``fileName`` directly.
 
         Args:
-            fileName (str, optional): Defined the file output name. Defaults to "EXPORT.xlsx".
-            dirStr (str | Path, optional): Defined where the dialog should start. Defaults to Path().home().absolute().
-            timeStamp (bool, optional): With timestamp?. Defaults to True.
-            promptDialog (bool, optional): Prompt the dialog?. Defaults to True.
+            fileName (str, optional): Base file name for the export.
+                Defaults to ``"EXPORT.xlsx"``.
+            dirStr (str | Path, optional): Starting directory for the
+                dialog, or the target directory when ``promptDialog`` is
+                ``False``. Defaults to the user's home directory.
+            timeStamp (bool, optional): Prepend a timestamp to
+                ``fileName`` when ``True``. Defaults to ``True``.
+            promptDialog (bool, optional): Show the save-file dialog
+                when ``True``; construct the path silently when
+                ``False``. Defaults to ``True``.
 
         Returns:
-            FileHandler: FileHandler Class Object
+            FileHandler: ``self``, to allow method chaining.
         """
         if timeStamp:
             fileName = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}-{fileName}"
@@ -185,13 +238,19 @@ class FileHandler:
         return self
 
     def select_file(self, title: str = "Open Source File") -> "FileHandler":
-        """Select File Dialog.
+        """Open a file-selection dialog for CSV or Excel files.
+
+        Present a Tkinter ``askopenfilename`` dialog filtered to CSV,
+        Excel, and all-file types. If the user selects a file, store its
+        absolute path in ``self.sourceFile``; otherwise retain the
+        previous value.
 
         Args:
-            title (str, optional): Defined the title of the dialog.
+            title (str, optional): Title text for the dialog window.
+                Defaults to ``"Open Source File"``.
 
         Returns:
-            FileHandler: FileHandler Class Object
+            FileHandler: ``self``, to allow method chaining.
         """
         filetype = (
             ("CSV Files", "*.csv"),
@@ -203,11 +262,18 @@ class FileHandler:
         return self
 
     def encoder_detect(self) -> dict[str, Any] | None:
-        """Detect File Encoding.
+        """Detect the character encoding of the current source file.
+
+        Read the raw bytes of ``self.sourceFile`` and pass them to
+        ``chardet.detect``. If the detected encoding is recognised
+        (i.e. present in ``self.encodingList``), return the full
+        detection result; otherwise return ``None``.
 
         Returns:
-            dict[str, Any] | None: Dictionary containing the encoding information or None if
-                the encoding is not found in the encoding list.
+            dict[str, Any] | None: A ``chardet`` result dictionary with
+                keys ``encoding``, ``confidence``, and ``language``, or
+                ``None`` when the source file is unset or the detected
+                encoding is not in the supported list.
         """
         source_file = self.sourceFile
         if source_file is None:
@@ -222,18 +288,28 @@ class FileHandler:
                 return None
 
     def read_file(self, skipRows: int = 0) -> "FileHandler":
-        """Read Source File as DataFrame.
+        """Read the source file into a pandas DataFrame.
+
+        Dispatch to ``pd.read_csv`` for ``.csv`` files and
+        ``pd.read_excel`` for Excel files (``.xlsx``, ``.xls``,
+        ``.xlsm``, ``.xlsb``). For CSV files, encoding is validated
+        via ``encoder_detect`` before reading. The resulting DataFrame
+        is stored in ``self.sourceData``.
 
         Args:
-            skipRows (int, optional): How many line should be skipped. Defaults to 0.
+            skipRows (int, optional): Number of leading rows to skip
+                when reading the file. Defaults to ``0``.
 
         Raises:
-            ValueError: None Value in `FileHandler.sourcefile`
-            ValueError: Invalid Encoding
-            ValueError: Invalid File Type or No File Selected!
+            FileNotFoundError: If ``self.sourceFile`` is ``None`` or
+                does not point to an existing file.
+            ValueError: If the detected encoding for a CSV file is not
+                in the supported encoding list.
+            TypeError: If the file extension is not a recognised CSV or
+                Excel format.
 
         Returns:
-            FileHandler: FileHandler Class Object
+            FileHandler: ``self``, to allow method chaining.
         """
         source_file = self.sourceFile
         if source_file is None or not source_file.is_file():
@@ -255,17 +331,25 @@ class FileHandler:
         self,
         data: Optional[Union[pd.DataFrame, Dict[str, Union[List, pd.DataFrame, Dict[str, Any]]]]] = None,
     ) -> "FileHandler":
-        """Export DataFrame to Excel.
+        """Export data to an Excel file via xlsxwriter.
+
+        Accept either a single ``DataFrame`` (written to "Sheet1") or a
+        dictionary mapping sheet names to DataFrames (each written to
+        its own worksheet). If ``data`` is ``None``, fall back to
+        ``self.sourceData``.
 
         Args:
-            data (dict[str, pd.DataFrame  |  dict  |  list] | pd.DataFrame, optional):
-                data to be exported. Defaults to None.
+            data (pd.DataFrame | dict | None, optional): Data to export.
+                A ``DataFrame`` is written as a single sheet; a ``dict``
+                of DataFrames produces one sheet per key. Defaults to
+                ``None``, in which case ``self.sourceData`` is used.
 
         Raises:
-            ValueError: Invalid Data Type
+            ValueError: If ``data`` is neither a ``DataFrame`` nor a
+                ``dict``.
 
         Returns:
-            FileHandler: FileHandler Class Object
+            FileHandler: ``self``, to allow method chaining.
         """
         data = data if data is not None else self.sourceData
         writer = pd.ExcelWriter(path=self.savedFile, engine="xlsxwriter")
@@ -282,16 +366,23 @@ class FileHandler:
         return self
 
     def flatten_dict(self, data: dict, parent_key: str = "", sep: str = "_", level: int = 1) -> dict:
-        """Flatten a nested dictionary.
+        """Flatten a nested dictionary up to a specified depth.
+
+        Recursively merge nested dictionary keys using ``sep`` as a
+        delimiter. Stop recursing when ``level`` reaches zero, leaving
+        deeper nested structures as-is.
 
         Args:
-            data (dict): Data with nested dictionary
-            parent_key (str, optional): Which key is to parented. Defaults to "".
-            sep (str, optional): New key separators. Defaults to "_".
-            level (int, optional): How many nested shall there be. Defaults to 1.
+            data (dict): The dictionary to flatten.
+            parent_key (str, optional): Prefix prepended to each key
+                during recursion. Defaults to ``""``.
+            sep (str, optional): Separator inserted between parent and
+                child keys. Defaults to ``"_"``.
+            level (int, optional): Maximum nesting levels to flatten.
+                Defaults to ``1``.
 
         Returns:
-            FileHandler: FileHandler Class Object
+            dict: A new dictionary with nested keys joined by ``sep``.
         """
         items = []
         for key, value in data.items():
@@ -303,10 +394,15 @@ class FileHandler:
         return dict(items)
 
     def open_explorer(self) -> "FileHandler":
-        """Open File Explorer.
+        """Open the native file explorer highlighting the saved file.
+
+        Detect the current operating system and launch the appropriate
+        file manager: ``explorer`` on Windows, ``open -R`` on macOS,
+        or ``xdg-open`` on Linux. The explorer opens to the directory
+        containing ``self.savedFile``.
 
         Returns:
-            FileHandler: FileHandler Class Object
+            FileHandler: ``self``, to allow method chaining.
         """
         from platform import system
         from subprocess import run

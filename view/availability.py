@@ -1,4 +1,10 @@
-"""Module for displaying device availability view."""
+"""Availability analysis tab for counting interface-down events.
+
+Provide the ``Availability`` frame that lets the user select syslog CSV
+exports, configure BSSB branch hostnames, and compute per-interface
+down-event counts against a lookup table. Results are exported to an
+Excel file with conditional formatting.
+"""
 
 from pathlib import Path
 from tkinter.messagebox import Message
@@ -16,7 +22,26 @@ from view.no_lt import init_view
 
 
 class Availability(ctk.CTkFrame):
-    """Availability analysis UI frame."""
+    """UI frame for the Availability analysis tab.
+
+    Display a branch-settings checklist, dynamically generated input
+    forms (one per lookup-table sheet), and Confirm/Config action
+    buttons. On confirmation, process the selected syslog files to
+    count interface-down events and export the results to Excel.
+
+    Attributes:
+        lookupTableName (str): File name used to cache the Availability
+            lookup table in the temp directory.
+        controller (Controller): Shared application controller.
+        rawData (dict[str, pd.DataFrame]): Mapping of sheet names to
+            user-selected syslog DataFrames.
+        dir (Path): Last-used directory for file dialogs.
+        branchList (list[str]): BSSB hostnames loaded from config.
+        configTopLevel (ConfigTopLevel | None): Reference to the open
+            config dialog, or ``None``.
+        views_func (list[Callable]): Ordered list of view-builder
+            callables invoked by ``init_view``.
+    """
 
     lookupTableName = "Availability.lt"
 
@@ -44,7 +69,13 @@ class Availability(ctk.CTkFrame):
         )
 
     def __setup_branch_settings(self) -> None:
-        """Setup branch settings list selector."""
+        """Build the BSSB branch-settings checklist.
+
+        Instantiate a ``ListSelector`` pre-populated with the hostname
+        list from the application config and pack it into the frame.
+        The user can search, add, remove, or toggle individual branch
+        hostnames.
+        """
         self.branchSetting = ListSelector(
             master=self,
             title="BSSB Settings",
@@ -54,6 +85,12 @@ class Availability(ctk.CTkFrame):
         self.branchSetting.pack(fill=ctk.BOTH, expand=True, pady=10)
 
     def __input_forms(self):
+        """Build the input-form grid for selecting syslog files.
+
+        Create one row per lookup-table sheet with a label and a button
+        that opens a multi-file selection dialog. The grid is rendered
+        inside the shared scrollable ``inputFrame``.
+        """
         # self.inputFrame = ctk.CTkScrollableFrame(master=self, fg_color="transparent")
         # self.inputFrame.pack(fill=ctk.BOTH, expand=True)
         self.inputFrame.columnconfigure(index=0, weight=1)
@@ -71,6 +108,12 @@ class Availability(ctk.CTkFrame):
             ).grid(column=1, row=row, sticky=ctk.NSEW, padx=5, pady=5)
 
     def __action_buttons(self) -> None:
+        """Build the Confirm and Config action buttons.
+
+        The **Confirm** button triggers ``process_data``. The **Config**
+        button opens (or focuses) the ``ConfigTopLevel`` dialog for
+        managing the lookup table and skip-rows settings.
+        """
         def determineConfigWindow():
             try:
                 if self.configTopLevel and self.configTopLevel.winfo_exists():
@@ -99,11 +142,19 @@ class Availability(ctk.CTkFrame):
         ).pack(side=ctk.LEFT, ipadx=10)
 
     def pick_file(self, name: str, row: int) -> None:
-        """Select and process a file for a specific device category.
+        """Open a multi-file dialog and load syslog CSVs for a device category.
+
+        Present a file dialog for the user to select one or more CSV
+        files. The selected files are concatenated and stored in
+        ``self.rawData[name]``. The button in the input-form grid at
+        ``row`` is replaced with a frame listing the selected file
+        names.
 
         Args:
-            name (str): Device category name.
-            row (int): Form grid row number.
+            name (str): Lookup-table sheet name identifying the device
+                category (e.g. ``"BSSB"``).
+            row (int): Grid row index of the button to replace with
+                file-name labels.
         """
         fileHandler = ExtendedFileProcessor(initDir=self.dir).select_files(title=f"Select files for {name}")
         sourceFiles = fileHandler.sourceFiles
@@ -130,10 +181,17 @@ class Availability(ctk.CTkFrame):
                 ).pack(fill=ctk.NONE, expand=False)
 
     def check_integrity(self) -> bool:
-        """Check user inputs integrity against configured branch list.
+        """Validate branch-settings changes and optionally persist them.
+
+        Compare the current ``ListSelector`` items against the stored
+        ``branchList``. If items were added or removed and BSSB data has
+        been loaded, prompt the user with a yes/no/cancel dialog. On
+        "yes", save the updated list to the config. On "cancel", abort
+        processing.
 
         Returns:
-            bool: True if configuration changes are saved or integrity is intact.
+            bool: ``True`` if processing should continue, ``False`` if
+                the user cancelled.
         """
         confirmDataChanges: str = "unbounded"
         added = set(self.branchSetting.get_items()) - set(self.branchList)
@@ -161,7 +219,15 @@ class Availability(ctk.CTkFrame):
         return False if confirmDataChanges == "cancel" else True
 
     def process_data(self) -> None:
-        """Process log files and perform availability calculation."""
+        """Run the availability analysis pipeline and export results.
+
+        Iterate over each lookup-table sheet, count interface-down
+        events from the corresponding syslog data (using
+        ``count_occurrences`` or ``count_by_column`` for BSSB sheets),
+        warn about any missing inputs, and export the results to a
+        conditionally-formatted Excel file. The file explorer is opened
+        on completion and the application window is destroyed.
+        """
         if not self.check_integrity():
             return None
         skip: list[str] = []

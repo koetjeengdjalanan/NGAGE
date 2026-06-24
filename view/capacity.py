@@ -1,4 +1,11 @@
-"""Module for displaying device capacity view."""
+"""Capacity analysis tab for computing bandwidth, CPU, and memory utilisation.
+
+Provide the ``Capacity`` frame that lets the user select Grafana CSV
+exports for various device categories (Branch, Enterprise, F5, Firewall,
+etc.), merges them against Excel lookup tables, computes utilisation
+percentages, and exports the results to a conditionally-formatted Excel
+file.
+"""
 
 import tkinter
 import tkinter.messagebox
@@ -25,7 +32,25 @@ from view.no_lt import init_view
 
 
 class Capacity(ctk.CTkFrame):
-    """Capacity analysis UI frame."""
+    """UI frame for the Capacity analysis tab.
+
+    Display input forms for bandwidth in/out CSVs (per device category),
+    F5 CPU/memory/bandwidth, and firewall CPU/memory/connection inputs.
+    On confirmation, process all loaded data through the appropriate
+    processing pipeline and export the results to Excel.
+
+    Attributes:
+        lookupTableName (str): File name used to cache the Capacity
+            lookup table in the temp directory.
+        controller (Controller): Shared application controller.
+        dir (Path): Last-used directory for file dialogs.
+        rawData (dict[str, dict[str, pd.DataFrame]]): Nested mapping of
+            device category to metric type to DataFrame.
+        configTopLevel (ConfigTopLevel | None): Reference to the open
+            config dialog, or ``None``.
+        views_func (list[Callable]): Ordered list of view-builder
+            callables invoked by ``init_view``.
+    """
 
     lookupTableName = "Capacity.lt"
 
@@ -51,7 +76,12 @@ class Capacity(ctk.CTkFrame):
         )
 
     def insertOnDev(self):
-        """Pre-populate files automatically when running in dev mode."""
+        """Pre-populate file inputs when running in development mode.
+
+        Intended for automated testing during development. The method
+        body is currently commented out. Emits a ``RuntimeWarning``
+        when called to discourage production use.
+        """
         warn(
             "insertOnDev is for development/testing purposes only and should not be used in production.", RuntimeWarning
         )
@@ -77,8 +107,14 @@ class Capacity(ctk.CTkFrame):
         #             isResource=False if "bw-" in type else True,
         #         )
 
-    # TODO: Refactor this method to be more readable & reuseable
     def __general_input_forms(self) -> None:
+        """Build the bandwidth in/out input-form grid.
+
+        Create a two-column grid with one row per non-F5,
+        non-Firewall_Resource lookup-table sheet. Each row contains
+        a label and two clickable ``CTkEntry`` fields: one for
+        bandwidth-in and one for bandwidth-out CSV files.
+        """
         ### General Inputs Forms
         self.inputFilePathInput: dict[str, dict[str, ctk.CTkEntry]] = {}
         inputFormsFrame = ctk.CTkFrame(master=self.inputFrame)
@@ -112,8 +148,14 @@ class Capacity(ctk.CTkFrame):
                 ),
             )
 
-    # TODO: Refactor this method to be more readable & reuseable
     def __fFive_input_forms(self) -> None:
+        """Build the F5 load-balancer input forms.
+
+        If the lookup table contains an ``F5`` sheet, render a
+        dedicated frame with fields for bandwidth in/out, PDC CPU,
+        SDC CPU, and memory CSV files. Skip rendering entirely when
+        the ``F5`` sheet is absent.
+        """
         ### F5 Input Forms
         if self.lookUpTable.get("F5") is None:
             return None
@@ -173,8 +215,14 @@ class Capacity(ctk.CTkFrame):
             lambda event, x="mem": self.pick_file(entry=self.f5FilePathInput[x], name="F5", type=x, isResource=True),
         )
 
-    # TODO: Refactor this method to be more readable & reuseable
     def __firewall_input_forms(self) -> None:
+        """Build the firewall resource input forms.
+
+        If the lookup table contains a ``Firewall_Resource`` sheet,
+        render a frame with fields for CPU, memory, checkpoint
+        connection count, and non-checkpoint connection count CSV
+        files. Skip rendering entirely when the sheet is absent.
+        """
         if self.lookUpTable.get("Firewall_Resource") is None:
             return None
         ### Firewall Input Forms
@@ -239,8 +287,13 @@ class Capacity(ctk.CTkFrame):
             ),
         )
 
-    # TODO: Add another button for options
     def __action_button(self) -> None:
+        """Build the Confirm and Config action buttons.
+
+        The **Confirm** button triggers ``process_data``. The **Config**
+        button opens (or focuses) a ``ConfigTopLevel`` dialog for
+        managing the lookup table and skip-rows settings.
+        """
         ### Action Button
         def determineConfigWindow():
             try:
@@ -277,14 +330,28 @@ class Capacity(ctk.CTkFrame):
         isResource: bool = False,
         filePath: str | Path = "",
     ) -> None:
-        """Select and process capacity log files.
+        """Open a file dialog and load a single capacity CSV.
+
+        Select a CSV or Excel file, read it (skipping configured header
+        rows), and store the resulting DataFrame in
+        ``self.rawData[name][type]``. For bandwidth files, extract
+        the numeric bandwidth and unit from the ``95 Percentile``
+        column and normalise to Mbps. For resource files (CPU/memory),
+        drop time-related columns. The ``entry`` widget is updated to
+        display the selected file path.
 
         Args:
-            entry (ctk.CTkEntry): The text box entry widget to display the selected path.
-            name (str): Device category name.
-            type (str): File/metric type.
-            isResource (bool, optional): Whether file is a CPU/memory resource log. Defaults to False.
-            filePath (str | Path, optional): File path if selected programmatically. Defaults to "".
+            entry (ctk.CTkEntry): The text-entry widget whose content
+                will be replaced with the selected file path.
+            name (str): Device category name matching a lookup-table
+                sheet (e.g. ``"Branch"``, ``"F5"``).
+            type (str): Metric type within the category (e.g.
+                ``"bw-in"``, ``"pdc-cpu"``, ``"mem"``).
+            isResource (bool, optional): ``True`` for CPU/memory files
+                that lack bandwidth columns. Defaults to ``False``.
+            filePath (str | Path, optional): Pre-selected file path for
+                programmatic use (skips the dialog). Defaults to
+                ``""``.
         """
         fileHandler = (
             FileHandler(initDir=self.dir).select_file(title=f"Select {name} {type}")
@@ -323,7 +390,17 @@ class Capacity(ctk.CTkFrame):
                 print(Error)
 
     def process_data(self) -> None:
-        """Process bandwidth, CPU, and memory logs for Capacity calculation."""
+        """Run the capacity analysis pipeline and export results.
+
+        Dispatch each device category to its appropriate processing
+        function: ``process_with_from_n_to`` for Branch and Building,
+        ``process_basic`` for Enterprise, Extranet, IDC, PCLD, and
+        Firewall_BW, ``process_f5`` for F5, and ``process_firewall``
+        for Firewall_Resource. Warn the user about any missing inputs,
+        then export all results to a conditionally-formatted Excel file.
+        The file explorer is opened on completion and the application
+        window is destroyed.
+        """
         infoError: list[str] = []
         res = {}
         for _ in ["Branch", "Building"]:

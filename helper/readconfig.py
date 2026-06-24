@@ -1,4 +1,12 @@
-"""Module for reading and writing application configurations."""
+"""Application configuration management and lookup-table utilities.
+
+Provide ``AppConfig``, a ``ConfigParser`` subclass that persists its
+state to a temporary directory, automatically applying version-based
+resets. Also provide standalone helpers for copying lookup-table files
+into the temp directory, reading multi-sheet Excel lookup tables with
+bandwidth normalisation, and deserialising config sections into Python
+data structures.
+"""
 
 import shutil
 from configparser import ConfigParser
@@ -15,7 +23,24 @@ from helper.processing import bw_unit_normalize
 
 
 class AppConfig(ConfigParser):
-    """Application configuration parser subclassing ConfigParser."""
+    """Application configuration backed by a ``config.ini`` in a temp directory.
+
+    On construction, load (or create) a config file at
+    ``<tempdir>/<hash>/config.ini``. If the stored ``config_version``
+    does not match ``CONFIG_VERSION``, or if ``reset`` is ``True``, the
+    file is overwritten with factory defaults.
+
+    Attributes:
+        configEnum (list[dict]): Default conditional-formatting rule
+            seed. Currently a single ``{"criteria": "="}`` entry.
+        CONFIG_VERSION (str): Expected config file version. A mismatch
+            triggers a reset to defaults.
+        SKIP_ROWS (int): Default number of CSV header rows to skip.
+        tmpDir (Path): Absolute path to the temporary directory where
+            the config file is stored.
+        skip_rows (int): Parsed value of the ``skip_rows`` setting from
+            the ``preamble`` section.
+    """
 
     configEnum: list[dict] = [{"criteria": "="}]
     CONFIG_VERSION: str = "0.7.0"
@@ -38,7 +63,16 @@ class AppConfig(ConfigParser):
         self.skip_rows = self.getint("preamble", "skip_rows", fallback=self.SKIP_ROWS)
 
     def set_default_config(self) -> None:
-        """Set the default formatting and availability configurations."""
+        """Write factory-default configuration sections to disk.
+
+        Create the temp directory if it does not exist and populate the
+        config with three sections:
+
+        * **preamble** — ``config_version`` and ``skip_rows``.
+        * **fmt** — JSON-encoded conditional-format rules for Capacity
+          and Availability exports (colour-coded percentage thresholds).
+        * **availability** — comma-separated BSSB hostname list.
+        """
         self.tmpDir.mkdir(exist_ok=True, parents=True)
         self["preamble"] = {"config_version": self.CONFIG_VERSION, "skip_rows": "0"}
         self["fmt"] = {
@@ -77,24 +111,31 @@ class AppConfig(ConfigParser):
             self.write(configfile)
 
     def write_config(self) -> None:
-        """Write the current configuration to the config.ini file."""
+        """Persist the current in-memory configuration to ``config.ini``.
+
+        Overwrite the file at ``self.tmpDir / config.ini`` with all
+        sections and options currently held by this ``ConfigParser``
+        instance.
+        """
         with open(Path(path.join(self.tmpDir, "config.ini")), "w") as configfile:
             self.write(configfile)
 
 
 def CopyLTFile(fileName: str) -> Path | None:
-    """
-    Copy a lookup table file to a temporary directory.
+    """Copy a user-selected lookup-table file into the temp directory.
 
-    This function opens a file dialog for the user to select a lookup table file,
-    then copies the selected file to a temporary directory.
+    Open a file dialog prompting the user to select an Excel lookup-table
+    file. If a file is selected, copy it into the ``AppConfig`` temp
+    directory under the given ``fileName``. The dialog title is derived
+    by stripping the ``.lt`` suffix from ``fileName``.
 
     Args:
-        fileName (str): The name of the file to be copied, including its extension.
+        fileName (str): Destination file name (including extension) for
+            the copied lookup table, e.g. ``"Capacity.lt"``.
 
     Returns:
-        Path | None: The Path object representing the destination of the copied file in
-        the temporary directory, or None if no file was selected.
+        Path | None: The ``Path`` to the copied file inside the temp
+            directory, or ``None`` if the user cancelled the dialog.
     """
     dest: Path = Path(path.join(AppConfig().tmpDir, fileName))
     lTFile = fd.askopenfilename(
@@ -110,20 +151,20 @@ def CopyLTFile(fileName: str) -> Path | None:
 
 
 def ReadLookupTable(filePath: Path) -> dict[str, pd.DataFrame]:
-    """
-    Read an Excel file containing lookup tables and normalize bandwidth units.
+    """Read a multi-sheet Excel lookup table and normalise bandwidth units.
 
-    This function reads all sheets from an Excel file, storing each sheet as a DataFrame
-    in a dictionary. For sheets containing 'Unit' and 'Bandwidth' columns, it applies
-    bandwidth unit normalization.
+    Load every worksheet from ``filePath`` into a dictionary of
+    DataFrames keyed by sheet name. For any sheet that contains both
+    ``Unit`` and ``Bandwidth`` columns, apply ``bw_unit_normalize``
+    row-wise to convert all bandwidth values to Mbps.
 
     Args:
-        filePath (Path): The file path of the Excel file to be read.
+        filePath (Path): Absolute path to the Excel file containing
+            one or more lookup-table sheets.
 
     Returns:
-        dict[str, pd.DataFrame]: A dictionary where keys are sheet names and values
-        are the corresponding DataFrames. Sheets with 'Unit' and 'Bandwidth' columns
-        have their bandwidth units normalized.
+        dict[str, pd.DataFrame]: Mapping of sheet names to DataFrames,
+            with bandwidth-bearing sheets already normalised to Mbps.
     """
     lookUpTable: dict[str, pd.DataFrame] = pd.read_excel(io=filePath, sheet_name=None)
     for each in lookUpTable:
@@ -133,15 +174,25 @@ def ReadLookupTable(filePath: Path) -> dict[str, pd.DataFrame]:
 
 
 def GetConfigAsList(config: AppConfig, section: str) -> dict[str, str | Any]:
-    """
-    Get a specified section as a dictionary of lists.
+    """Deserialise a config section into a dictionary of native Python objects.
+
+    For each key in ``section``, check whether its value starts with
+    ``"["`` (indicating a JSON array). If so, parse it with
+    ``json.loads``; otherwise keep the raw string. This allows config
+    values to hold either plain strings or JSON-encoded lists of
+    dictionaries (e.g. conditional-format rules).
 
     Args:
-        config (AppConfig): The application configuration object.
-        section (str): The section name.
+        config (AppConfig): The application configuration instance to
+            read from.
+        section (str): The ``[section]`` name to retrieve.
 
     Returns:
-        dict[str, list[dict]]: A dictionary where values are lists of dictionaries.
+        dict[str, str | Any]: A dictionary mapping option names to
+            either their raw string values or parsed JSON objects.
+
+    Raises:
+        KeyError: If ``section`` does not exist in the configuration.
     """
     if config.has_section(section):
         return {key: jLoads(value) if value.startswith("[") else value for key, value in config.items(section)}

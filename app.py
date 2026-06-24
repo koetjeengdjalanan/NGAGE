@@ -1,4 +1,10 @@
-"""Entry Point for the Application, initializes the main window and handles global errors."""
+"""Application entry point for the DBS Grafana Reporting Automation tool.
+
+Initializes the main CustomTkinter window with tabbed views for Capacity
+and Availability analysis. Provides a global error handler that captures
+unhandled exceptions and displays them in a modal error window, preventing
+silent crashes during user interaction.
+"""
 
 import sys
 import traceback
@@ -17,19 +23,25 @@ from view.capacity import Capacity
 class App(ctk.CTk):
     """Main application window for DBS Grafana Reporting Automation.
 
-    Initializes the main Tkinter window with tabs for Capacity and Availability views.
-
-    Attributes:
-        env (dict): Environment configuration dictionary.
-        config (AppConfig): Application configuration object.
+    Create the root CustomTkinter window and populate it with a tabbed
+    interface containing Capacity and Availability analysis views. The
+    window is positioned at one-quarter offset from the top-left corner
+    of the screen and is not resizable.
     """
 
     def __init__(self, start_size: tuple[int, int], env: dict = {"DEV": False}):
-        """Initialize the main application window.
+        """Initialize the main application window with tabbed views.
+
+        Set the window icon, title, geometry, and create a ``CTkTabview``
+        containing the Capacity and Availability tabs. An ``AppConfig``
+        and ``Environment`` are instantiated and bundled into a
+        ``Controller`` that is shared with every child view.
 
         Args:
-            start_size (tuple[int, int]): Initial window size (width, height).
-            env (dict, optional): Environment configuration dictionary. Defaults to {"DEV": False}.
+            start_size (tuple[int, int]): Initial window dimensions as
+                ``(width, height)`` in pixels.
+            env (dict, optional): Environment configuration dictionary.
+                Defaults to ``{"DEV": False}``.
         """
         super().__init__()
         GetFile.setIcon(self)
@@ -52,7 +64,17 @@ class App(ctk.CTk):
 # IDEA: Add a function to writ a default env file if not exist to tempdir and use it as default
 # value and make it editable!
 def environment() -> dict:
-    """Load environment variables from a .env.toml file if it exists, otherwise return default values."""
+    """Load environment configuration from a local ``.env.toml`` file.
+
+    Search for a ``.env.toml`` file in the current working directory. If
+    the file exists, parse it with the ``toml`` library and return the
+    resulting dictionary. Otherwise, return a default configuration with
+    ``DEV`` set to ``False``.
+
+    Returns:
+        dict: A dictionary of environment key-value pairs. At minimum
+            contains the ``DEV`` key.
+    """
     envPath = Path("./.env.toml").absolute()
     if envPath.is_file():
         with open(envPath, "r") as file:
@@ -63,7 +85,19 @@ def environment() -> dict:
 
 
 def handle_error(exception, value, tb):
-    """Global error handler that displays an error message in a custom Tkinter window."""
+    """Display an unhandled exception in a modal error window.
+
+    Create a ``CTkToplevel`` window that shows the exception value as a
+    heading and the full traceback in a read-only text box. The main
+    application window is disabled (on Windows) while the error window
+    is visible, and closing the error window also destroys the
+    application.
+
+    Args:
+        exception (type): The exception class.
+        value (BaseException): The exception instance.
+        tb (types.TracebackType): The traceback object.
+    """
     print(exception, value, tb)
     error_window = ctk.CTkToplevel(takefocus=True)
     error_window.title("An error has occurred")
