@@ -38,8 +38,6 @@ class AppConfig(ConfigParser):
         SKIP_ROWS (int): Default number of CSV header rows to skip.
         tmpDir (Path): Absolute path to the temporary directory where
             the config file is stored.
-        skip_rows (int): Parsed value of the ``skip_rows`` setting from
-            the ``preamble`` section.
     """
 
     configEnum: list[dict] = [{"criteria": "="}]
@@ -60,7 +58,7 @@ class AppConfig(ConfigParser):
             self.set_default_config()
         with open(Path(path.join(self.tmpDir, "config.ini")), "r") as f:
             self.read_file(f)
-        self.skip_rows = self.getint("preamble", "skip_rows", fallback=self.SKIP_ROWS)
+        self.SKIP_ROWS = self.getint("preamble", "skip_rows", fallback=0)
 
     def set_default_config(self) -> None:
         """Write factory-default configuration sections to disk.
@@ -70,7 +68,7 @@ class AppConfig(ConfigParser):
 
         * **preamble** — ``config_version`` and ``skip_rows``.
         * **fmt** — JSON-encoded conditional-format rules for Capacity
-          and Availability exports (colour-coded percentage thresholds).
+            and Availability exports (colour-coded percentage thresholds).
         * **availability** — comma-separated BSSB hostname list.
         """
         self.tmpDir.mkdir(exist_ok=True, parents=True)

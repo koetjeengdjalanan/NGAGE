@@ -84,6 +84,13 @@ class ConfigTopLevel(ctk.CTkToplevel):
         def _validate_input_integer(char: str) -> bool:
             return any([char.isdigit(), char == ""])
 
+        def _save_skip_rows():
+            value = str(skip_line_vals.get())
+            self.controller.config.set(section="preamble", option="skip_rows", value=value)
+            self.controller.config.SKIP_ROWS = int(value)
+            self.controller.config.write_config()
+            self.destroy()
+
         skip_line_vals = ctk.StringVar(value=str(self.controller.config.SKIP_ROWS))
         skip_line_config_frame = ctk.CTkFrame(master=self)
         skip_line_config_frame.pack(fill=ctk.X, expand=True, padx=10, pady=10)
@@ -99,9 +106,7 @@ class ConfigTopLevel(ctk.CTkToplevel):
         skip_line_entry.pack(pady=10, padx=10)
         skip_line_entry.bind(
             "<Return>",
-            lambda e: self.controller.config.set(
-                section="preamble", option="skip_rows", value=str(skip_line_vals.get())
-            ),
+            lambda e: _save_skip_rows(),
         )
         def _handle_scroll(event):
             try:
@@ -117,9 +122,7 @@ class ConfigTopLevel(ctk.CTkToplevel):
         ctk.CTkButton(
             master=skip_line_config_frame,
             text="Save",
-            command=lambda: self.controller.config.set(
-                section="preamble", option="skip_rows", value=str(skip_line_vals.get())
-            ),
+            command=_save_skip_rows,
         ).pack(pady=10, padx=10)
 
     # TODO: Implement conditional formatting configuration
