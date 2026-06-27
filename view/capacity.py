@@ -1,0 +1,465 @@
+"""Capacity analysis tab for computing bandwidth, CPU, and memory utilisation.
+
+Provide the ``Capacity`` frame that lets the user select Grafana CSV
+exports for various device categories (Branch, Enterprise, F5, Firewall,
+etc.), merges them against Excel lookup tables, computes utilisation
+percentages, and exports the results to a conditionally-formatted Excel
+file.
+"""
+
+import tkinter
+import tkinter.messagebox
+from pathlib import Path
+from warnings import warn
+
+import customtkinter as ctk
+import pandas as pd
+
+from helper.ext_filehandler import ExtendedFileProcessor
+from helper.filehandler import FileHandler
+from helper.processing import (
+    bw_unit_normalize,
+    conc_df,
+    process_basic,
+    process_f5,
+    process_firewall,
+    process_with_from_n_to,
+)
+from helper.readconfig import GetConfigAsList
+from models import Controller
+from view.configtoplevel import ConfigTopLevel
+from view.no_lt import init_view
+
+
+class Capacity(ctk.CTkFrame):
+    """UI frame for the Capacity analysis tab.
+
+    Display input forms for bandwidth in/out CSVs (per device category),
+    F5 CPU/memory/bandwidth, and firewall CPU/memory/connection inputs.
+    On confirmation, process all loaded data through the appropriate
+    processing pipeline and export the results to Excel.
+
+    Attributes:
+        lookupTableName (str): File name used to cache the Capacity
+            lookup table in the temp directory.
+        controller (Controller): Shared application controller.
+        dir (Path): Last-used directory for file dialogs.
+        rawData (dict[str, dict[str, pd.DataFrame]]): Nested mapping of
+            device category to metric type to DataFrame.
+        configTopLevel (ConfigTopLevel | None): Reference to the open
+            config dialog, or ``None``.
+        views_func (list[Callable]): Ordered list of view-builder
+            callables invoked by ``init_view``.
+    """
+
+    lookupTableName = "Capacity.lt"
+
+    def __init__(self, master: ctk.CTkFrame, controller: Controller) -> None:
+        super().__init__(master=master, fg_color="transparent", corner_radius=None)
+        self._name = "Capacity"
+        self.controller = controller
+        self.dir: Path = Path().cwd()
+        self.rawData: dict[str, dict[str, pd.DataFrame]] = {}
+        self.configTopLevel = None
+        self.views_func = [
+            self.__general_input_forms,
+            self.__fFive_input_forms,
+            self.__firewall_input_forms,
+            self.__action_button,
+        ]
+        self.inputFrame: ctk.CTkScrollableFrame
+        self.lookUpTable: dict[str, pd.DataFrame]
+        init_view(
+            master=self,
+            lookup_table_path=self.controller.config.tmpDir.joinpath(self.lookupTableName),
+            views_func=self.views_func,
+        )
+
+    def insertOnDev(self):
+        """Pre-populate file inputs when running in development mode.
+
+        Intended for automated testing during development. The method
+        body is currently commented out. Emits a ``RuntimeWarning``
+        when called to discourage production use.
+        """
+        warn(
+            "insertOnDev is for development/testing purposes only and should not be used in production.", RuntimeWarning
+        )
+        # for each in self.lookUpTable.keys():
+        #     if each not in self.controller.env["sourceFiles"]:
+        #         continue
+        #     print(f"assign: {each}")
+        #     self.rawData[each] = {}
+        #     for type in self.controller.env["sourceFiles"][each]:
+        #         print(f"⊢→ {type}")
+        #         match each:
+        #             case "F5":
+        #                 pathInput = self.f5FilePathInput[type]
+        #             case "Firewall_Resource":
+        #                 pathInput = self.firewallInputPath[type]
+        #             case _:
+        #                 pathInput = self.inputFilePathInput[each][type]
+        #         self.pick_file(
+        #             entry=pathInput,
+        #             name=each,
+        #             type=type,
+        #             filePath=Path(self.controller.env["sourceFiles"][each][type]),
+        #             isResource=False if "bw-" in type else True,
+        #         )
+
+    def __general_input_forms(self) -> None:
+        """Build the bandwidth in/out input-form grid.
+
+        Create a two-column grid with one row per non-F5,
+        non-Firewall_Resource lookup-table sheet. Each row contains
+        a label and two clickable ``CTkEntry`` fields: one for
+        bandwidth-in and one for bandwidth-out CSV files.
+        """
+        ### General Inputs Forms
+        self.inputFilePathInput: dict[str, dict[str, ctk.CTkEntry]] = {}
+        inputFormsFrame = ctk.CTkFrame(master=self.inputFrame)
+        inputFormsFrame.pack(fill=ctk.BOTH, expand=False, padx=10, pady=10)
+        inputFormsFrame.columnconfigure(index=0, weight=1)
+        inputFormsFrame.columnconfigure(index=1, weight=3)
+        inputFormsFrame.columnconfigure(index=2, weight=3)
+        ctk.CTkLabel(master=inputFormsFrame, text="Bandwidths In-Out", font=("", 24)).grid(
+            column=0, row=0, sticky="nsew", padx=5, pady=10, columnspan=3
+        )
+        ctk.CTkLabel(master=inputFormsFrame, text="Bandwidth In").grid(column=1, row=1, sticky="nsew", padx=5, pady=5)
+        ctk.CTkLabel(master=inputFormsFrame, text="Bandwidth Out").grid(column=2, row=1, sticky="nsew", padx=5, pady=5)
+        inputFormsFrame.columnconfigure(index=2, weight=3)
+        for id, input in enumerate(iterable=self.lookUpTable.keys(), start=2):
+            if input in ["F5", "Firewall_Resource"]:
+                continue
+            ctk.CTkLabel(master=inputFormsFrame, text=input).grid(column=0, row=id, sticky=ctk.W, padx=5, pady=5)
+            self.inputFilePathInput[input] = {}
+            self.inputFilePathInput[input]["bw-in"] = ctk.CTkEntry(master=inputFormsFrame, state=ctk.DISABLED)
+            self.inputFilePathInput[input]["bw-in"].grid(column=1, row=id, sticky="nsew", padx=5, pady=5)
+            self.inputFilePathInput[input]["bw-in"].bind(
+                "<1>",
+                lambda event, x=input: self.pick_file(entry=self.inputFilePathInput[x]["bw-in"], name=x, type="bw-in"),
+            )
+            self.inputFilePathInput[input]["bw-out"] = ctk.CTkEntry(master=inputFormsFrame, state=ctk.DISABLED)
+            self.inputFilePathInput[input]["bw-out"].grid(column=2, row=id, sticky="nsew", padx=5, pady=5)
+            self.inputFilePathInput[input]["bw-out"].bind(
+                "<1>",
+                lambda event, x=input: self.pick_file(
+                    entry=self.inputFilePathInput[x]["bw-out"], name=x, type="bw-out"
+                ),
+            )
+
+    def __fFive_input_forms(self) -> None:
+        """Build the F5 load-balancer input forms.
+
+        If the lookup table contains an ``F5`` sheet, render a
+        dedicated frame with fields for bandwidth in/out, PDC CPU,
+        SDC CPU, and memory CSV files. Skip rendering entirely when
+        the ``F5`` sheet is absent.
+        """
+        ### F5 Input Forms
+        if self.lookUpTable.get("F5") is None:
+            return None
+        self.f5FilePathInput: dict[str, ctk.CTkEntry] = {}
+        f5FormsFrame = ctk.CTkFrame(master=self.inputFrame)
+        f5FormsFrame.pack(fill=ctk.BOTH, expand=False, padx=10, pady=10)
+        f5FormsFrame.columnconfigure(0, weight=1)
+        f5FormsFrame.columnconfigure(1, weight=1)
+        ctk.CTkLabel(master=f5FormsFrame, text="F5 Forms Inputs", font=("", 24)).grid(
+            column=0, row=0, sticky="nsew", padx=5, pady=10, columnspan=2
+        )
+        ctk.CTkLabel(master=f5FormsFrame, text="Bandwidth In").grid(column=0, row=1, sticky="nsew", padx=5, pady=(5, 0))
+        self.f5FilePathInput["bw-in"] = ctk.CTkEntry(master=f5FormsFrame, state=ctk.DISABLED)
+        self.f5FilePathInput["bw-in"].grid(column=0, row=2, sticky="nsew", padx=5, pady=(0, 5))
+        self.f5FilePathInput["bw-in"].bind(
+            "<1>",
+            lambda event, x="bw-in": self.pick_file(entry=self.f5FilePathInput[x], name="F5", type=x),
+        )
+        ctk.CTkLabel(master=f5FormsFrame, text="Bandwidth Out").grid(
+            column=1, row=1, sticky="nsew", padx=5, pady=(5, 0)
+        )
+        self.f5FilePathInput["bw-out"] = ctk.CTkEntry(master=f5FormsFrame, state=ctk.DISABLED)
+        self.f5FilePathInput["bw-out"].grid(column=1, row=2, sticky="nsew", padx=5, pady=(0, 5))
+        self.f5FilePathInput["bw-out"].bind(
+            "<1>",
+            lambda event, x="bw-out": self.pick_file(entry=self.f5FilePathInput[x], name="F5", type=x),
+        )
+        ctk.CTkLabel(master=f5FormsFrame, text="PDC CPU 95th %").grid(
+            column=0, row=3, sticky="nsew", padx=5, pady=(5, 0)
+        )
+        self.f5FilePathInput["pdc-cpu"] = ctk.CTkEntry(master=f5FormsFrame, state=ctk.DISABLED)
+        self.f5FilePathInput["pdc-cpu"].grid(column=0, row=4, sticky="nsew", padx=5, pady=(0, 5))
+        self.f5FilePathInput["pdc-cpu"].bind(
+            "<1>",
+            lambda event, x="pdc-cpu": self.pick_file(
+                entry=self.f5FilePathInput[x], name="F5", type=x, isResource=True
+            ),
+        )
+        ctk.CTkLabel(master=f5FormsFrame, text="SDC CPU 95th %").grid(
+            column=1, row=3, sticky="nsew", padx=5, pady=(5, 0)
+        )
+        self.f5FilePathInput["sdc-cpu"] = ctk.CTkEntry(master=f5FormsFrame, state=ctk.DISABLED)
+        self.f5FilePathInput["sdc-cpu"].grid(column=1, row=4, sticky="nsew", padx=5, pady=(0, 5))
+        self.f5FilePathInput["sdc-cpu"].bind(
+            "<1>",
+            lambda event, x="sdc-cpu": self.pick_file(
+                entry=self.f5FilePathInput[x], name="F5", type=x, isResource=True
+            ),
+        )
+        ctk.CTkLabel(master=f5FormsFrame, text="Mem 95th %").grid(
+            column=0, row=5, sticky="nsew", padx=5, pady=(5, 0), columnspan=2
+        )
+        self.f5FilePathInput["mem"] = ctk.CTkEntry(master=f5FormsFrame, state=ctk.DISABLED)
+        self.f5FilePathInput["mem"].grid(column=0, row=6, sticky="nsew", padx=5, pady=(0, 5), columnspan=2)
+        self.f5FilePathInput["mem"].bind(
+            "<1>",
+            lambda event, x="mem": self.pick_file(entry=self.f5FilePathInput[x], name="F5", type=x, isResource=True),
+        )
+
+    def __firewall_input_forms(self) -> None:
+        """Build the firewall resource input forms.
+
+        If the lookup table contains a ``Firewall_Resource`` sheet,
+        render a frame with fields for CPU, memory, checkpoint
+        connection count, and non-checkpoint connection count CSV
+        files. Skip rendering entirely when the sheet is absent.
+        """
+        if self.lookUpTable.get("Firewall_Resource") is None:
+            return None
+        ### Firewall Input Forms
+        self.firewallInputPath: dict[str, ctk.CTkEntry] = {}
+        firewallFormsFrame = ctk.CTkFrame(master=self.inputFrame)
+        firewallFormsFrame.pack(fill=ctk.BOTH, expand=False, padx=10, pady=10)
+        firewallFormsFrame.columnconfigure(0, weight=1)
+        firewallFormsFrame.columnconfigure(1, weight=1)
+        ctk.CTkLabel(master=firewallFormsFrame, text="Firewall Forms Inputs", font=("", 24)).grid(
+            column=0, row=0, sticky="nsew", padx=5, pady=10, columnspan=2
+        )
+        ctk.CTkLabel(master=firewallFormsFrame, text="CPU").grid(column=0, row=1, sticky="nsew", padx=5, pady=(5, 0))
+        self.firewallInputPath["cpu"] = ctk.CTkEntry(master=firewallFormsFrame, state=ctk.DISABLED)
+        self.firewallInputPath["cpu"].grid(column=0, row=2, sticky="nsew", padx=5, pady=(0, 5))
+        self.firewallInputPath["cpu"].bind(
+            "<1>",
+            lambda event, x="cpu": self.pick_file(
+                entry=self.firewallInputPath[x],
+                name="Firewall_Resource",
+                type=x,
+                isResource=True,
+            ),
+        )
+        ctk.CTkLabel(master=firewallFormsFrame, text="Mem").grid(column=1, row=1, sticky="nsew", padx=5, pady=(5, 0))
+        self.firewallInputPath["mem"] = ctk.CTkEntry(master=firewallFormsFrame, state=ctk.DISABLED)
+        self.firewallInputPath["mem"].grid(column=1, row=2, sticky="nsew", padx=5, pady=(0, 5))
+        self.firewallInputPath["mem"].bind(
+            "<1>",
+            lambda event, x="mem": self.pick_file(
+                entry=self.firewallInputPath[x],
+                name="Firewall_Resource",
+                type=x,
+                isResource=True,
+            ),
+        )
+        ctk.CTkLabel(master=firewallFormsFrame, text="Connection Count CP").grid(
+            column=0, row=3, sticky="nsew", padx=5, pady=(5, 0)
+        )
+        self.firewallInputPath["con-cp"] = ctk.CTkEntry(master=firewallFormsFrame, state=ctk.DISABLED)
+        self.firewallInputPath["con-cp"].grid(column=0, row=4, sticky="nsew", padx=5, pady=(0, 5))
+        self.firewallInputPath["con-cp"].bind(
+            "<1>",
+            lambda event, x="con-cp": self.pick_file(
+                entry=self.firewallInputPath[x],
+                name="Firewall_Resource",
+                type=x,
+                isResource=True,
+            ),
+        )
+        ctk.CTkLabel(master=firewallFormsFrame, text="Connection Count Non-CP").grid(
+            column=1, row=3, sticky="nsew", padx=5, pady=(5, 0)
+        )
+        self.firewallInputPath["con-noncp"] = ctk.CTkEntry(master=firewallFormsFrame, state=ctk.DISABLED)
+        self.firewallInputPath["con-noncp"].grid(column=1, row=4, sticky="nsew", padx=5, pady=(0, 5))
+        self.firewallInputPath["con-noncp"].bind(
+            "<1>",
+            lambda event, x="con-noncp": self.pick_file(
+                entry=self.firewallInputPath[x],
+                name="Firewall_Resource",
+                type=x,
+                isResource=True,
+            ),
+        )
+
+    def __action_button(self) -> None:
+        """Build the Confirm and Config action buttons.
+
+        The **Confirm** button triggers ``process_data``. The **Config**
+        button opens (or focuses) a ``ConfigTopLevel`` dialog for
+        managing the lookup table and skip-rows settings.
+        """
+        ### Action Button
+        def determineConfigWindow():
+            try:
+                if self.configTopLevel and self.configTopLevel.winfo_exists():
+                    self.configTopLevel.focus()
+                else:
+                    raise AttributeError
+            except AttributeError:
+                config_list = GetConfigAsList(config=self.controller.config, section="fmt")["capacity"]
+                if not isinstance(config_list, list):
+                    config_list = []
+                self.configTopLevel = ConfigTopLevel(
+                    master=self, controller=self.controller, lt_table_name=self.lookupTableName
+                )
+                self.configTopLevel.wait_visibility()
+                self.configTopLevel.grab_set()
+
+        actionButtonFrame = ctk.CTkFrame(master=self, fg_color="transparent")
+        actionButtonFrame.pack(fill=ctk.BOTH, expand=False, padx=10, pady=10)
+        ctk.CTkButton(master=actionButtonFrame, text="Confirm", command=self.process_data).pack(
+            side=ctk.RIGHT, ipadx=10
+        )
+        ctk.CTkButton(
+            master=actionButtonFrame,
+            text="Config",
+            command=determineConfigWindow,
+        ).pack(side=ctk.LEFT, ipadx=10)
+
+    def pick_file(
+        self,
+        entry: ctk.CTkEntry,
+        name: str,
+        type: str,
+        isResource: bool = False,
+        filePath: str | Path = "",
+    ) -> None:
+        """Open a file dialog and load a single capacity CSV.
+
+        Select a CSV or Excel file, read it (skipping configured header
+        rows), and store the resulting DataFrame in
+        ``self.rawData[name][type]``. For bandwidth files, extract
+        the numeric bandwidth and unit from the ``95 Percentile``
+        column and normalise to Mbps. For resource files (CPU/memory),
+        drop time-related columns. The ``entry`` widget is updated to
+        display the selected file path.
+
+        Args:
+            entry (ctk.CTkEntry): The text-entry widget whose content
+                will be replaced with the selected file path.
+            name (str): Device category name matching a lookup-table
+                sheet (e.g. ``"Branch"``, ``"F5"``).
+            type (str): Metric type within the category (e.g.
+                ``"bw-in"``, ``"pdc-cpu"``, ``"mem"``).
+            isResource (bool, optional): ``True`` for CPU/memory files
+                that lack bandwidth columns. Defaults to ``False``.
+            filePath (str | Path, optional): Pre-selected file path for
+                programmatic use (skips the dialog). Defaults to
+                ``""``.
+        """
+        fileHandler = (
+            FileHandler(initDir=self.dir).select_file(title=f"Select {name} {type}")
+            if filePath == ""
+            else FileHandler(initDir=self.dir, sourceFile=Path(filePath))
+        )
+        sourceFile = fileHandler.sourceFile
+        if sourceFile is None:
+            return None
+        sourceData = fileHandler.read_file(skipRows=self.controller.config.SKIP_ROWS).sourceData
+        if sourceData is None:
+            return None
+        self.dir = Path(str(sourceFile).rsplit(sep="/", maxsplit=2)[0]).absolute()
+        entry.configure(state=ctk.NORMAL)
+        entry.delete(0, ctk.END)
+        entry.insert(0, str(sourceFile))
+        entry.xview_moveto(1)
+        entry.configure(state=ctk.DISABLED)
+        while True:
+            try:
+                if not isResource:
+                    self.rawData[name][type] = sourceData.assign(
+                        Bandwidth=sourceData["95 Percentile"].str.extract(r"([0-9.]+)\s*\w+/s")[0].astype(float),
+                        Unit=sourceData["95 Percentile"].str.extract(r"[0-9.]+\s*(\w+/s)")[0],
+                    ).apply(bw_unit_normalize, axis=1)
+                else:
+                    self.rawData[name][type] = (
+                        sourceData.rename({"Metric": "Hostname"}).drop(["Month"], axis=1)
+                        if "Metric" in sourceData.columns
+                        else sourceData.drop(["Time"], axis=1)
+                    )
+                break
+            except KeyError:
+                self.rawData[name] = {}
+            except Exception as Error:
+                print(Error)
+
+    def process_data(self) -> None:
+        """Run the capacity analysis pipeline and export results.
+
+        Dispatch each device category to its appropriate processing
+        function: ``process_with_from_n_to`` for Branch and Building,
+        ``process_basic`` for Enterprise, Extranet, IDC, PCLD, and
+        Firewall_BW, ``process_f5`` for F5, and ``process_firewall``
+        for Firewall_Resource. Warn the user about any missing inputs,
+        then export all results to a conditionally-formatted Excel file.
+        The file explorer is opened on completion and the application
+        window is destroyed.
+        """
+        infoError: list[str] = []
+        res = {}
+        for _ in ["Branch", "Building"]:
+            if _ not in self.lookUpTable.keys():
+                continue
+            if _ not in self.rawData:
+                infoError.append(f"{_} \t Not Fount in Input, Skipping!\n")
+                continue
+            res[_] = process_with_from_n_to(
+                raw=(
+                    self.rawData[_]
+                    if "Extranet" not in self.rawData
+                    else conc_df(ext=self.rawData[_], orig=self.rawData["Extranet"])
+                ),
+                lookUpTable=self.lookUpTable[_],
+            )
+        for _ in ["Enterprise", "Extranet", "IDC", "PCLD", "Firewall_BW"]:
+            if _ not in self.lookUpTable.keys():
+                continue
+            if _ not in self.rawData:
+                infoError.append(f"{_} \t Not Fount in Input, Skipping!\n")
+                continue
+            res[_] = process_basic(
+                raw=(
+                    self.rawData[_]
+                    if "Extranet" not in self.rawData
+                    else conc_df(ext=self.rawData[_], orig=self.rawData["Extranet"])
+                ),
+                lookUpTable=self.lookUpTable[_],
+            )
+        if "F5" in self.rawData.keys() and "F5" in self.lookUpTable.keys():
+            res["F5"] = process_f5(
+                raw=self.rawData["F5"],
+                lookUpTable=self.lookUpTable["F5"],
+            )
+        elif "F5" in self.lookUpTable.keys():
+            infoError.append("F5 \t Not Fount in Input, Skipping!\n")
+        if "Firewall_Resource" in self.rawData.keys() and "Firewall_Resource" in self.lookUpTable.keys():
+            res["Firewall_Resource"] = process_firewall(
+                raw=self.rawData["Firewall_Resource"],
+                lookUpTable=self.lookUpTable["Firewall_Resource"],
+            )
+        elif "Firewall_Resource" in self.lookUpTable.keys():
+            infoError.append("Firewall \t Not Fount in Input, Skipping!\n")
+        if len(infoError) > 0:
+            tkinter.messagebox.showwarning(
+                title="Missing Value",
+                message=f"{''.join(infoError)}",
+            )
+        extExcel = ExtendedFileProcessor()
+        extExcel.save_file_loc(dirStr=self.dir)
+        rules_list = GetConfigAsList(config=self.controller.config, section="fmt")["capacity"]
+        if not isinstance(rules_list, list):
+            rules_list = []
+        extExcel.ext_export(
+            data=res,
+            rules=rules_list,
+            colList=["%", "cpu"],
+        )
+        extExcel.open_explorer()
+        print(extExcel.savedFile)
+        self.controller.root.destroy()

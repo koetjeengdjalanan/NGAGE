@@ -142,3 +142,7 @@ res.csv
 
 # New code block
 private _stream: Stream;
+
+# AI Nonsense
+.agents/
+graphify-out/
